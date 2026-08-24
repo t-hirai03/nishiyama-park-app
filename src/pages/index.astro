@@ -1,17 +1,472 @@
 ---
+import { Picture } from 'astro:assets';
+import type { ImageMetadata } from 'astro';
+import Layout from '../layouts/Layout.astro';
+import Section from '../components/Section.astro';
+import BarList from '../components/BarList.astro';
+import ColumnChart from '../components/ColumnChart.astro';
+import YearCalendar from '../components/YearCalendar.astro';
+import { VisitPlanner } from '../components/VisitPlanner';
+import { HIGHLIGHTS, formatWindow } from '../lib/season';
+import {
+  annualTotals,
+  byTemperature,
+  byWeather,
+  municipalityShares,
+  parkZooRatios,
+  parkingByWeekday,
+  tsutsujiSpecies,
+  tsutsujiTotal,
+  yearStats,
+  zooYearly,
+} from '../lib/insights';
 
+const loadImages = (records: Record<string, { default: ImageMetadata }>) =>
+  Object.entries(records)
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([, module]) => module.default);
+
+const tsutsujiPhotos = loadImages(
+  import.meta.glob<{ default: ImageMetadata }>('../assets/images/tsutsuji/*.webp', { eager: true })
+);
+const kouyouPhotos = loadImages(
+  import.meta.glob<{ default: ImageMetadata }>('../assets/images/kouyou/*.webp', { eager: true })
+);
+
+const heroPhoto = tsutsujiPhotos[0];
+const tsutsujiHighlight = HIGHLIGHTS.find((highlight) => highlight.id === 'tsutsuji');
+const kouyouHighlight = HIGHLIGHTS.find((highlight) => highlight.id === 'kouyou');
+
+const temperatureItems = byTemperature.map((band) => ({
+  label: band.label,
+  value: band.average,
+  note: `${band.days}日`,
+  dimmed: band.average < 600,
+}));
+
+const tsutsujiItems = tsutsujiSpecies.map((species, index) => ({
+  label: species.species,
+  value: species.count,
+  note: species.areas[0] ?? '',
+  dimmed: index !== 0,
+}));
+
+const zooItems = zooYearly.map((year) => ({
+  label: year.fiscalYear,
+  value: Math.round(year.total / 1000),
+  caption: year.hasGap ? '休園あり' : '',
+  dimmed: year.hasGap,
+}));
+
+const parkingItems = parkingByWeekday.map((day) => ({
+  label: `${day.weekday}曜`,
+  value: day.average,
+  dimmed: day.average < 600,
+}));
+
+const sources = [
+  {
+    name: '西山公園東側 日別来訪者数（令和7年度）',
+    detail: '来訪者数・天気・最高最低気温を含む365日分。おすすめ度と人出予想の土台。',
+  },
+  { name: '西山公園来訪者割合 市区町村別（令和7年度）', detail: '休日・平日それぞれの上位8市区町村。' },
+  { name: '西山公園入場者数 月別（令和6・7年度）', detail: '参考データ。動物園入場者数からの推計値。' },
+  { name: '西山動物園入場者数 月別（平成20〜令和7年度）', detail: '18年分の長期推移。' },
+  { name: '道の駅西山公園入場者数 月別（令和6・7年度）', detail: '参考データ。' },
+  { name: '西山公園のツツジの種類と株数', detail: '11種・合計50,025株と植栽場所。' },
+  { name: '駐車場出庫台数（2026年4月）', detail: '出典表記が未確認のため補助指標として扱う。' },
+];
+
+const navItems = [
+  { href: '#plan', label: 'いつ行く' },
+  { href: '#year', label: '一年の見どころ' },
+  { href: '#tsutsuji', label: 'ツツジ' },
+  { href: '#kouyou', label: '紅葉' },
+  { href: '#data', label: 'データ' },
+];
 ---
 
-<html lang="en">
-	<head>
-		<meta charset="utf-8" />
-		<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-		<link rel="icon" href="/favicon.ico" />
-		<meta name="viewport" content="width=device-width" />
-		<meta name="generator" content={Astro.generator} />
-		<title>Astro</title>
-	</head>
-	<body>
-		<h1>Astro</h1>
-	</body>
-</html>
+<Layout
+  title="いつ行く？西山公園 | 鯖江市オープンデータで見頃と混雑を読む"
+  description="福井県鯖江市の西山公園に、いつ行くのが一番いいか。市が公開する日別来訪者数365日分と天気予報から、見頃・天気・気温・ゆとりを100点で採点します。オープンデータ活用アプリコンテスト2026 応募作品。"
+>
+  <header class="sticky top-0 z-10 border-b border-stone-200 bg-stone-50/85 backdrop-blur">
+    <div class="mx-auto flex w-[min(76rem,100%-2rem)] items-center justify-between py-3">
+      <a href="#top" class="text-sm font-bold tracking-tight text-stone-900">いつ行く？西山公園</a>
+      <nav aria-label="セクション">
+        <ul class="hidden gap-5 text-sm text-stone-600 sm:flex">
+          {
+            navItems.map((item) => (
+              <li>
+                <a href={item.href} class="transition duration-150 hover:text-emerald-700">
+                  {item.label}
+                </a>
+              </li>
+            ))
+          }
+        </ul>
+      </nav>
+    </div>
+  </header>
+
+  <main id="top">
+    <section class="relative isolate overflow-hidden">
+      {
+        heroPhoto && (
+          <Picture
+            src={heroPhoto}
+            alt="斜面いっぱいに咲く西山公園のツツジ"
+            formats={['avif', 'webp']}
+            fallbackFormat="webp"
+            width={1440}
+            widths={[640, 1024, 1440]}
+            sizes="100vw"
+            quality={48}
+            loading="eager"
+            pictureAttributes={{ class: 'contents' }}
+            class="absolute inset-0 -z-10 h-full w-full object-cover"
+          />
+        )
+      }
+      <div class="absolute inset-0 -z-10 bg-gradient-to-br from-stone-950/85 via-stone-900/65 to-stone-900/30"></div>
+      <div class="mx-auto w-[min(76rem,100%-2rem)] py-24 sm:py-32">
+        <p class="text-xs font-medium tracking-[0.2em] text-emerald-300 uppercase">
+          Fukui / Sabae — Nishiyama Park
+        </p>
+        <h1 class="mt-4 text-4xl leading-tight font-bold tracking-tight text-white sm:text-6xl">
+          <span class="block">西山公園に行くなら、</span>
+          <span class="block">いつがいいか。</span>
+        </h1>
+        <p class="mt-5 max-w-2xl leading-relaxed text-stone-200">
+          11種50,025株のツツジ、日本庭園の紅葉、入園無料のレッサーパンダ。
+          鯖江市が公開する<strong class="font-semibold text-white">日別来訪者数365日分</strong>と天気予報を突き合わせて、
+          見頃・天気・気温・ゆとりの4項目を100点で採点します。
+        </p>
+        <p class="mt-8 text-sm text-stone-300">
+          年間で最も多かったのは
+          {yearStats.busiest.date.replace(/-/g, '/')}（ツツジ）の{yearStats.busiest.visitors.toLocaleString()}人。
+          最も静かだったのは大雪の{yearStats.quietest.date.replace(/-/g, '/')}で、推計10人未満でした。
+        </p>
+      </div>
+    </section>
+
+    <div class="mx-auto w-[min(76rem,100%-2rem)] pb-24">
+      <section id="plan" class="scroll-mt-20 py-14">
+        <p class="text-xs font-medium tracking-[0.2em] text-emerald-700 uppercase">This week</p>
+        <h2 class="mt-2 text-2xl font-bold tracking-tight text-stone-900 sm:text-3xl">
+          今週いつ行くのが正解か
+        </h2>
+        <div class="mt-7">
+          <VisitPlanner client:load />
+        </div>
+      </section>
+
+      <div class="space-y-24 pt-10">
+        <Section
+          id="year"
+          eyebrow="A year at the park"
+          title="一年のどこに山があるか"
+          lead="月ごとの1日平均来訪者数と平均最高気温です。5月のツツジと11月の紅葉、年に2回の山があります。"
+        >
+          <YearCalendar />
+        </Section>
+
+        {
+          tsutsujiHighlight && (
+            <Section
+              id="tsutsuji"
+              eyebrow="Late April – Mid May"
+              title={tsutsujiHighlight.catchphrase}
+              lead={tsutsujiHighlight.description}
+            >
+              <p class="-mt-3 mb-7 text-sm leading-relaxed text-stone-500">
+                {tsutsujiHighlight.evidence}　見頃の中心: {formatWindow(tsutsujiHighlight.peak)}
+              </p>
+              <ul class="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                {tsutsujiPhotos.map((photo, index) => (
+                  <li
+                    class={
+                      index === 0
+                        ? 'relative col-span-2 row-span-2 overflow-hidden rounded-2xl'
+                        : ''
+                    }
+                  >
+                    <Picture
+                      src={photo}
+                      formats={['avif', 'webp']}
+                      fallbackFormat="webp"
+                      pictureAttributes={{ class: 'contents' }}
+                      alt={`西山公園のツツジ ${index + 1}`}
+                      width={640}
+                      widths={[320, 640]}
+                      sizes="(min-width: 640px) 25vw, 50vw"
+                      quality={62}
+                      loading="lazy"
+                      class={
+                        index === 0
+                          ? 'absolute inset-0 h-full w-full object-cover'
+                          : 'aspect-[4/3] w-full rounded-2xl object-cover'
+                      }
+                    />
+                  </li>
+                ))}
+              </ul>
+              <h3 class="mt-12 text-lg font-bold text-stone-900">どこに、どの種類が咲くか</h3>
+              <p class="mt-2 max-w-2xl leading-relaxed text-stone-600">
+                最多のヒラドツツジが全体の
+                {Math.round(((tsutsujiSpecies[0]?.count ?? 0) / tsutsujiTotal) * 100)}%を占めます。
+                種類ごとに開花期がずれるため、見頃の幅はひと月近くあります。
+              </p>
+              <div class="mt-6">
+                <BarList items={tsutsujiItems} unit="株" color="#be185d" />
+              </div>
+            </Section>
+          )
+        }
+
+        {
+          kouyouHighlight && (
+            <Section
+              id="kouyou"
+              eyebrow="Mid November"
+              title={kouyouHighlight.catchphrase}
+              lead={kouyouHighlight.description}
+            >
+              <p class="-mt-3 mb-7 text-sm leading-relaxed text-stone-500">
+                {kouyouHighlight.evidence}　見頃の中心: {formatWindow(kouyouHighlight.peak)}
+              </p>
+              <ul class="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                {kouyouPhotos.map((photo, index) => (
+                  <li
+                    class={
+                      index === 0
+                        ? 'relative col-span-2 row-span-2 overflow-hidden rounded-2xl'
+                        : ''
+                    }
+                  >
+                    <Picture
+                      src={photo}
+                      formats={['avif', 'webp']}
+                      fallbackFormat="webp"
+                      pictureAttributes={{ class: 'contents' }}
+                      alt={`西山公園 嚮陽庭園の紅葉 ${index + 1}`}
+                      width={640}
+                      widths={[320, 640]}
+                      sizes="(min-width: 640px) 25vw, 50vw"
+                      quality={62}
+                      loading="lazy"
+                      class={
+                        index === 0
+                          ? 'absolute inset-0 h-full w-full object-cover'
+                          : 'aspect-[4/3] w-full rounded-2xl object-cover'
+                      }
+                    />
+                  </li>
+                ))}
+              </ul>
+            </Section>
+          )
+        }
+
+        <Section
+          eyebrow="Off season"
+          title="花のない時期に行く理由"
+          lead="6〜8月と冬は人出が落ち着きます。この時期の西山公園には、混雑と無関係の目当てがあります。"
+        >
+          <div class="grid gap-4 sm:grid-cols-2">
+            <article class="rounded-2xl bg-white p-6 ring-1 ring-stone-200">
+              <h3 class="text-lg font-bold text-stone-900">入園無料のレッサーパンダ</h3>
+              <p class="mt-2 leading-relaxed text-stone-600">
+                併設の西山動物園は入園無料です。令和7年度の入場者数は
+                {zooYearly[zooYearly.length - 1]?.total.toLocaleString()}人で、記録のある18年間で2番目の多さでした。
+              </p>
+            </article>
+            <article class="rounded-2xl bg-white p-6 ring-1 ring-stone-200">
+              <h3 class="text-lg font-bold text-stone-900">道の駅が隣接している</h3>
+              <p class="mt-2 leading-relaxed text-stone-600">
+                道の駅 西山公園の令和7年度入場者数は{annualTotals.michinoeki.toLocaleString()}人。
+                公園の人出が落ちる冬でも、月1万人以上が立ち寄っています。
+              </p>
+            </article>
+          </div>
+        </Section>
+
+        <Section
+          id="data"
+          eyebrow="How it works"
+          title="採点に使っているデータ"
+          lead="おすすめ度100点のうち、天気30点・気温20点・ゆとり10点は、すべて令和7年度の実測365日から計算しています。"
+        >
+          <h3 class="text-lg font-bold text-stone-900">天気と曜日で人出は2倍以上変わる</h3>
+          <div class="mt-5 overflow-x-auto rounded-2xl bg-white ring-1 ring-stone-200">
+            <table class="w-full min-w-[32rem] text-sm">
+              <caption class="sr-only">天気と平日休日ごとの1日あたり平均来訪者数</caption>
+              <thead>
+                <tr class="border-b border-stone-200 text-stone-500">
+                  <th scope="col" class="px-5 py-3 text-left font-medium">天気</th>
+                  <th scope="col" class="px-5 py-3 text-right font-medium">休日の平均</th>
+                  <th scope="col" class="px-5 py-3 text-right font-medium">平日の平均</th>
+                  <th scope="col" class="px-5 py-3 text-right font-medium">該当日数</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-stone-100">
+                {
+                  byWeather.map((row) => (
+                    <tr>
+                      <th scope="row" class="px-5 py-3 text-left font-medium text-stone-900">
+                        {row.label}
+                      </th>
+                      <td class="px-5 py-3 text-right tabular-nums text-stone-900">
+                        {row.weekend.average.toLocaleString()} 人
+                      </td>
+                      <td class="px-5 py-3 text-right tabular-nums text-stone-900">
+                        {row.weekday.average.toLocaleString()} 人
+                      </td>
+                      <td class="px-5 py-3 text-right tabular-nums text-stone-500">
+                        {row.weekend.days + row.weekday.days} 日
+                      </td>
+                    </tr>
+                  ))
+                }
+              </tbody>
+            </table>
+          </div>
+
+          <h3 class="mt-12 text-lg font-bold text-stone-900">
+            気温は「高いほどいい」ではない
+          </h3>
+          <p class="mt-2 max-w-2xl leading-relaxed text-stone-600">
+            最高気温帯ごとの平均来訪者数は山型になります。20〜25℃がピークで、30℃を超えると半分近くまで落ちます。
+            この曲線をそのまま「気温の快適さ」20点の配点に使っています。
+          </p>
+          <div class="mt-6">
+            <BarList items={temperatureItems} unit="人" color="#b45309" />
+          </div>
+
+          <h3 class="mt-14 text-lg font-bold text-stone-900">来ているのは、ほとんど地元の人</h3>
+          <p class="mt-2 max-w-2xl leading-relaxed text-stone-600">
+            休日でも鯖江市が52%、平日は62%。福井県外はほぼ現れません。だからこそ、
+            県外から来る人にとっては「一年で一番いい日」を外さないことが重要になります。
+          </p>
+          <div class="mt-6 grid gap-10 sm:grid-cols-2">
+            <div>
+              <h4 class="mb-4 text-sm font-bold tracking-wide text-stone-500">休日</h4>
+              <BarList
+                items={municipalityShares.holiday.map((row, index) => ({
+                  label: row.name.replace('福井県', ''),
+                  value: row.share,
+                  dimmed: index !== 0,
+                }))}
+                unit="%"
+                color="#0369a1"
+              />
+            </div>
+            <div>
+              <h4 class="mb-4 text-sm font-bold tracking-wide text-stone-500">平日</h4>
+              <BarList
+                items={municipalityShares.weekday.map((row, index) => ({
+                  label: row.name.replace('福井県', ''),
+                  value: row.share,
+                  dimmed: index !== 0,
+                }))}
+                unit="%"
+                color="#0369a1"
+              />
+            </div>
+          </div>
+
+          <h3 class="mt-14 text-lg font-bold text-stone-900">動物園には18年分の記録がある</h3>
+          <div class="mt-5">
+            <ColumnChart items={zooItems} unit="千人（年度合計）" color="#7c3aed" minWidth="min-w-[1280px]" />
+          </div>
+        </Section>
+
+        <Section
+          eyebrow="Caveat"
+          title="足してはいけない数字がある"
+          lead="公開されている3つの入場者数は測り方が異なります。西山公園の入場者数は実測ではなく、動物園の入場者数から機械的に計算された推計値でした。"
+        >
+          <div class="overflow-x-auto rounded-2xl bg-white ring-1 ring-stone-200">
+            <table class="w-full min-w-[34rem] text-sm">
+              <caption class="sr-only">令和7年度の月別入場者数と、公園÷動物園の比</caption>
+              <thead>
+                <tr class="border-b border-stone-200 text-stone-500">
+                  <th scope="col" class="px-5 py-3 text-left font-medium">月</th>
+                  <th scope="col" class="px-5 py-3 text-right font-medium">公園</th>
+                  <th scope="col" class="px-5 py-3 text-right font-medium">動物園</th>
+                  <th scope="col" class="px-5 py-3 text-right font-medium">公園 ÷ 動物園</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-stone-100">
+                {
+                  parkZooRatios.map((row) => (
+                    <tr>
+                      <th scope="row" class="px-5 py-3 text-left font-medium text-stone-900">
+                        {row.month}
+                      </th>
+                      <td class="px-5 py-3 text-right tabular-nums text-stone-600">
+                        {row.park.toLocaleString()}
+                      </td>
+                      <td class="px-5 py-3 text-right tabular-nums text-stone-600">
+                        {row.zoo.toLocaleString()}
+                      </td>
+                      <td class="px-5 py-3 text-right font-semibold tabular-nums text-rose-700">
+                        {row.ratio.toFixed(2)}
+                      </td>
+                    </tr>
+                  ))
+                }
+              </tbody>
+            </table>
+          </div>
+          <p class="mt-5 max-w-2xl leading-relaxed text-stone-600">
+            なお日別来訪者数は365日すべてが10の倍数で、10人単位に丸められた推計値です。
+            最小値の0人は「誰も来なかった」ではなく「10人未満」を意味します。
+          </p>
+          <p class="mt-4 max-w-2xl leading-relaxed text-stone-600">
+            12か月すべてで比が
+            <strong class="font-semibold text-stone-900">ちょうど5.00か3.00</strong>
+            になります。花の時期（4・5・9・10・11月）は5倍、それ以外は3倍。令和6年度の12か月も同じでした。
+            本アプリが採点に使うのは、日単位で天気とセットになっている東側エリアの数字だけです。
+          </p>
+
+          <h3 class="mt-12 text-lg font-bold text-stone-900">駐車場の出庫台数（補助指標）</h3>
+          <p class="mt-2 max-w-2xl leading-relaxed text-stone-600">
+            2026年4月の曜日別平均出庫台数です。出典表記が未確認のため、採点には使わず参考として掲載しています。
+          </p>
+          <div class="mt-6">
+            <BarList items={parkingItems} unit="台" color="#57534e" />
+          </div>
+        </Section>
+
+        <Section
+          eyebrow="Open Data"
+          title="使用したオープンデータ"
+          lead="鯖江市が公開する西山公園関連のデータセット7件をすべて使用しています。"
+        >
+          <ul class="divide-y divide-stone-200 rounded-2xl bg-white ring-1 ring-stone-200">
+            {
+              sources.map((source) => (
+                <li class="px-5 py-4">
+                  <p class="font-medium text-stone-900">{source.name}</p>
+                  <p class="mt-1 text-sm text-stone-600">{source.detail}</p>
+                </li>
+              ))
+            }
+          </ul>
+        </Section>
+      </div>
+    </div>
+  </main>
+
+  <footer class="border-t border-stone-200 bg-white">
+    <div class="mx-auto w-[min(76rem,100%-2rem)] py-10 text-sm text-stone-500">
+      <p>
+        オープンデータ活用アプリコンテスト2026 応募作品（主催: 鯖江市 / 企画運営: NPO法人エル・コミュニティ）
+      </p>
+      <p class="mt-2">
+        天気予報は Open-Meteo を利用しています。おすすめ度と人出の予想は過去実績にもとづく参考値であり、実際の見頃や混雑を保証するものではありません。
+      </p>
+    </div>
+  </footer>
+</Layout>

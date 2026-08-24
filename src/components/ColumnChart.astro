@@ -1,0 +1,79 @@
+---
+interface Item {
+  label: string;
+  value: number;
+  caption?: string;
+  dimmed?: boolean;
+}
+
+interface Props {
+  items: Item[];
+  unit: string;
+  color?: string;
+  minWidth?: string;
+}
+
+const { items, unit, color = '#15803d', minWidth = 'min-w-[640px]' } = Astro.props;
+
+const WIDTH = 960;
+const HEIGHT = 300;
+const PLOT_TOP = 34;
+const PLOT_BOTTOM = 244;
+const PLOT_HEIGHT = PLOT_BOTTOM - PLOT_TOP;
+const max = Math.max(...items.map((item) => item.value), 1);
+const slot = WIDTH / items.length;
+const barWidth = Math.min(slot * 0.56, 58);
+
+const columns = items.map((item, index) => {
+  const height = Math.max((item.value / max) * PLOT_HEIGHT, 2);
+  return {
+    ...item,
+    x: slot * index + (slot - barWidth) / 2,
+    y: PLOT_BOTTOM - height,
+    height,
+    center: slot * index + slot / 2,
+  };
+});
+---
+
+<figure>
+  <figcaption class="mb-2 text-xs text-stone-500">単位: {unit}</figcaption>
+  <div class="overflow-x-auto">
+  <svg viewBox={`0 0 ${WIDTH} ${HEIGHT}`} class={`h-auto w-full ${minWidth}`} role="img">
+    <line x1="0" y1={PLOT_BOTTOM} x2={WIDTH} y2={PLOT_BOTTOM} stroke="#e7e5e4" stroke-width="2" />
+    {
+      columns.map((column) => (
+        <>
+          <rect
+            x={column.x}
+            y={column.y}
+            width={barWidth}
+            height={column.height}
+            rx="4"
+            fill={color}
+            opacity={column.dimmed ? 0.35 : 1}
+          />
+          <text
+            x={column.center}
+            y={column.y - 10}
+            text-anchor="middle"
+            font-size="19"
+            font-weight="600"
+            fill="#44403c"
+          >
+            {column.value.toLocaleString()}
+          </text>
+          <text x={column.center} y={PLOT_BOTTOM + 26} text-anchor="middle" font-size="19" fill="#78716c">
+            {column.label}
+          </text>
+          {column.caption && (
+            <text x={column.center} y={PLOT_BOTTOM + 50} text-anchor="middle" font-size="17" fill="#a8a29e">
+              {column.caption}
+            </text>
+          )}
+        </>
+      ))
+    }
+    </svg>
+  </div>
+</figure>

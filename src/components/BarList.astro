@@ -1,0 +1,50 @@
+---
+interface Item {
+  label: string;
+  value: number;
+  note?: string;
+  dimmed?: boolean;
+}
+
+interface Props {
+  items: Item[];
+  unit: string;
+  color?: string;
+}
+
+const { items, unit, color = '#15803d' } = Astro.props;
+const max = Math.max(...items.map((item) => item.value), 1);
+const TRACK = 1000;
+---
+
+<ul class="space-y-2.5">
+  {
+    items.map((item) => (
+      <li class="grid grid-cols-[6.5rem_1fr_auto] items-center gap-3 sm:grid-cols-[11rem_1fr_auto] sm:gap-4">
+        <span class="truncate text-sm text-stone-600">{item.label}</span>
+        <svg
+          class="h-6 w-full"
+          viewBox={`0 0 ${TRACK} 24`}
+          preserveAspectRatio="none"
+          role="img"
+          aria-label={`${item.label} ${item.value.toLocaleString()}${unit}`}
+        >
+          <rect x="0" y="0" width={TRACK} height="24" fill="#f5f5f4" />
+          <rect
+            x="0"
+            y="0"
+            width={Math.max((item.value / max) * TRACK, 4)}
+            height="24"
+            fill={color}
+            opacity={item.dimmed ? 0.45 : 1}
+          />
+        </svg>
+        <span class="text-right text-sm tabular-nums text-stone-900">
+          <span class="font-semibold">{item.value.toLocaleString()}</span>
+          <span class="ml-0.5 text-xs text-stone-500">{unit}</span>
+          {item.note && <span class="ml-1.5 text-xs text-stone-400">{item.note}</span>}
+        </span>
+      </li>
+    ))
+  }
+</ul>
