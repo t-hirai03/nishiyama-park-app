@@ -1,0 +1,87 @@
+{
+  "fiscalYear": "令和7年度",
+  "holiday": [
+    {
+      "rank": 1,
+      "name": "福井県鯖江市",
+      "share": 52
+    },
+    {
+      "rank": 2,
+      "name": "福井県越前市",
+      "share": 19
+    },
+    {
+      "rank": 3,
+      "name": "福井県福井市",
+      "share": 18
+    },
+    {
+      "rank": 4,
+      "name": "福井県丹生郡越前町",
+      "share": 5
+    },
+    {
+      "rank": 5,
+      "name": "福井県坂井市",
+      "share": 4
+    },
+    {
+      "rank": 6,
+      "name": "福井県南条郡南越前町",
+      "share": 1
+    },
+    {
+      "rank": 7,
+      "name": "福井県吉田郡永平寺町",
+      "share": 1
+    },
+    {
+      "rank": 8,
+      "name": "福井県今立郡池田町",
+      "share": 0
+    }
+  ],
+  "weekday": [
+    {
+      "rank": 1,
+      "name": "福井県鯖江市",
+      "share": 62
+    },
+    {
+      "rank": 2,
+      "name": "福井県越前市",
+      "share": 17
+    },
+    {
+      "rank": 3,
+      "name": "福井県福井市",
+      "share": 14
+    },
+    {
+      "rank": 4,
+      "name": "福井県丹生郡越前町",
+      "share": 5
+    },
+    {
+      "rank": 5,
+      "name": "福井県坂井市",
+      "share": 1
+    },
+    {
+      "rank": 6,
+      "name": "福井県南条郡南越前町",
+      "share": 1
+    },
+    {
+      "rank": 7,
+      "name": "福井県今立郡池田町",
+      "share": 0
+    },
+    {
+      "rank": 8,
+      "name": "福井県吉田郡永平寺町",
+      "share": 0
+    }
+  ]
+}
