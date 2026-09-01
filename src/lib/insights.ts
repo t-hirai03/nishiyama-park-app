@@ -1,5 +1,4 @@
-import { ALL_DAYS, WEATHER_LABEL, type DayRecord, type WeatherCategory } from './congestion';
-import { highlightOf } from './season';
+import { ALL_DAYS, type DayRecord } from './days';
 import monthlyPark from '../data/monthly-park.json';
 import monthlyZoo from '../data/monthly-zoo.json';
 import monthlyMichinoeki from '../data/monthly-michinoeki.json';
@@ -9,31 +8,6 @@ import parking from '../data/parking.json';
 
 const average = (values: number[]) =>
   values.length === 0 ? 0 : Math.round(values.reduce((a, b) => a + b, 0) / values.length);
-
-const TEMP_BANDS = [
-  { label: '5℃未満', min: -99, max: 5 },
-  { label: '5〜10℃', min: 5, max: 10 },
-  { label: '10〜15℃', min: 10, max: 15 },
-  { label: '15〜20℃', min: 15, max: 20 },
-  { label: '20〜25℃', min: 20, max: 25 },
-  { label: '25〜30℃', min: 25, max: 30 },
-  { label: '30℃以上', min: 30, max: 99 },
-];
-
-export const byTemperature = TEMP_BANDS.map((band) => {
-  const days = ALL_DAYS.filter((d) => d.tempMax >= band.min && d.tempMax < band.max);
-  return { label: band.label, days: days.length, average: average(days.map((d) => d.visitors)) };
-});
-
-const CATEGORIES: WeatherCategory[] = ['sunny', 'cloudy', 'rain', 'snow'];
-
-export const byWeather = CATEGORIES.map((category) => {
-  const cell = (isWeekend: boolean) => {
-    const days = ALL_DAYS.filter((d) => d.weatherCategory === category && d.isWeekend === isWeekend);
-    return { days: days.length, average: average(days.map((d) => d.visitors)) };
-  };
-  return { category, label: WEATHER_LABEL[category], weekend: cell(true), weekday: cell(false) };
-});
 
 export const byMonth = (() => {
   const groups = new Map<string, DayRecord[]>();
@@ -50,7 +24,6 @@ export const byMonth = (() => {
       average: average(days.map((day) => day.visitors)),
       peak: Math.max(...days.map((day) => day.visitors)),
       averageTempMax: average(days.map((day) => day.tempMax)),
-      highlight: highlightOf(new Date(2025, month - 1, 15)),
     };
   });
 })();

@@ -1,5 +1,5 @@
 import type { ReactElement } from 'react';
-import type { WeatherCategory } from '../lib/congestion';
+import type { WeatherCategory } from '../lib/days';
 
 const PATHS: Record<WeatherCategory, ReactElement> = {
   sunny: (
