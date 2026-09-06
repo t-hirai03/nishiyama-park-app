@@ -13,6 +13,12 @@ import {
   type Preferences,
 } from '../lib/scoring';
 import { buildNarrative } from '../lib/narrative';
+import {
+  DEFAULT_STATE,
+  parsePlannerState,
+  serializePlannerState,
+  type PlannerState,
+} from '../lib/url-state';
 import { WeatherIcon } from './WeatherIcon';
 
 const LIST_LIMIT = 12;
@@ -207,13 +213,21 @@ const Skeleton = () => (
 export const VisitPlanner = () => {
   const [baseDate, setBaseDate] = useState<Date | null>(null);
   const [forecast, setForecast] = useState<ForecastMap | null>(null);
-  const [period, setPeriod] = useState<PeriodId>('week');
-  const [preferences, setPreferences] = useState<Preferences>(DEFAULT_PREFERENCES);
+  const [state, setState] = useState<PlannerState>(DEFAULT_STATE);
   const [expanded, setExpanded] = useState(false);
+  const { preferences, period } = state;
 
   useEffect(() => {
     setBaseDate(resolveBaseDate());
+    setState(parsePlannerState(window.location.search));
   }, []);
+
+  // 条件が変わるたびURLへ書き戻す。履歴は汚さない
+  useEffect(() => {
+    if (!baseDate) return;
+    const query = serializePlannerState(state);
+    window.history.replaceState(null, '', query.length > 0 ? '?' + query : window.location.pathname);
+  }, [state, baseDate]);
 
   useEffect(() => {
     let cancelled = false;
@@ -240,7 +254,11 @@ export const VisitPlanner = () => {
 
   const [best, second, third, ...rest] = ranked;
   const update = <K extends keyof Preferences>(key: K, value: Preferences[K]) =>
-    setPreferences((current) => ({ ...current, [key]: value }));
+    setState((current) => ({
+      ...current,
+      preferences: { ...current.preferences, [key]: value },
+    }));
+  const setPeriod = (next: PeriodId) => setState((current) => ({ ...current, period: next }));
   const visibleRest = expanded ? rest : rest.slice(0, LIST_LIMIT);
   const isOverridden = toIsoDate(baseDate) !== toIsoDate(new Date());
 

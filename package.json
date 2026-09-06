@@ -13,7 +13,8 @@
     "astro": "astro",
     "optimize:images": "node scripts/optimize-images.mjs",
     "typecheck": "tsc --noEmit",
-    "check:claim": "esbuild scripts/check-claim.ts --bundle --platform=node --format=esm --loader:.json=json --outfile=node_modules/.cache/check-claim.mjs --log-level=error && node node_modules/.cache/check-claim.mjs"
+    "check:claim": "esbuild scripts/check-claim.ts --bundle --platform=node --format=esm --loader:.json=json --outfile=node_modules/.cache/check-claim.mjs --log-level=error && node node_modules/.cache/check-claim.mjs",
+    "check:url": "esbuild scripts/check-url.ts --bundle --platform=node --format=esm --loader:.json=json --outfile=node_modules/.cache/check-url.mjs --log-level=error && node node_modules/.cache/check-url.mjs"
   },
   "dependencies": {
     "@astrojs/react": "^6.0.4",
