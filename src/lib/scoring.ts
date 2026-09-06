@@ -52,7 +52,15 @@ const PURPOSE_WEIGHTS: Record<PurposeId, Weights> = {
   'lesser-panda': { bloom: 5, weather: 25, temperature: 45, room: 25 },
 };
 
-const TRANSPORT_BONUS: Record<TransportId, number> = { local: 0, train: 5, car: 10 };
+/**
+ * 県外から来る人は、天気だけでなく混雑も重く効く。
+ * 県内なら来週やり直せるが、県外は一度きりの旅程になるため。
+ */
+const TRANSPORT_BONUS: Record<TransportId, { weather: number; room: number }> = {
+  local: { weather: 0, room: 0 },
+  train: { weather: 5, room: 15 },
+  car: { weather: 10, room: 15 },
+};
 
 const COMPANION_BONUS: Record<CompanionId, { temperature: number; room: number }> = {
   adults: { temperature: 0, room: 0 },
@@ -88,9 +96,9 @@ export const buildWeights = (preferences: Preferences): Weights => {
   const companion = COMPANION_BONUS[preferences.companion];
   const adjusted: Weights = {
     bloom: base.bloom,
-    weather: base.weather + TRANSPORT_BONUS[preferences.transport],
+    weather: base.weather + TRANSPORT_BONUS[preferences.transport].weather,
     temperature: base.temperature + companion.temperature,
-    room: base.room + companion.room,
+    room: base.room + companion.room + TRANSPORT_BONUS[preferences.transport].room,
   };
   return normalize(applyPriority(adjusted, preferences.priority));
 };
