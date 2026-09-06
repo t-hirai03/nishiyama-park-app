@@ -1,0 +1,479 @@
+---
+import Layout from '../layouts/Layout.astro';
+import Section from '../components/Section.astro';
+import BarList from '../components/BarList.astro';
+import ColumnChart from '../components/ColumnChart.astro';
+import { DATA_AREA, DATA_FISCAL_YEAR, DATA_NOTE, WEEKDAY_LABEL, formatMonthDay } from '../lib/days';
+import { TEMPERATURE_BANDS, TEMPERATURE_PEAK, WEATHER_STATS } from '../lib/climate';
+import {
+  BLOOM_WINDOWS,
+  SEASONAL_BASELINE,
+  SEASONAL_MAX,
+  WEATHER_FACTOR,
+  WEEKDAY_FACTOR,
+} from '../lib/seasonality';
+import {
+  annualTotals,
+  byMonth,
+  municipalityShares,
+  parkZooRatios,
+  parkingByWeekday,
+  tsutsujiSpecies,
+  tsutsujiTotal,
+  yearStats,
+  zooYearly,
+} from '../lib/insights';
+
+const temperatureItems = TEMPERATURE_BANDS.map((band) => ({
+  label: band.label,
+  value: band.average,
+  note: `${band.days}日`,
+  dimmed: band.average < TEMPERATURE_PEAK * 0.9,
+}));
+
+const monthItems = byMonth
+  .slice()
+  .sort((a, b) => a.month - b.month)
+  .map((month) => ({
+    label: `${month.label}（平均最高${month.averageTempMax}℃）`,
+    value: month.average,
+    dimmed: month.average < 450,
+  }));
+
+const tsutsujiItems = tsutsujiSpecies.map((species, index) => ({
+  label: species.species,
+  value: species.count,
+  note: species.areas[0] ?? '',
+  dimmed: index !== 0,
+}));
+
+const zooItems = zooYearly.map((year) => ({
+  label: year.fiscalYear,
+  value: Math.round(year.total / 1000),
+  caption: year.hasGap ? '休園あり' : '',
+  dimmed: year.hasGap,
+}));
+
+const parkingItems = parkingByWeekday.map((day) => ({
+  label: `${day.weekday}曜`,
+  value: day.average,
+  dimmed: day.average < 600,
+}));
+
+const weekdayItems = WEEKDAY_LABEL.map((label, index) => ({
+  label: `${label}曜`,
+  value: Math.round((WEEKDAY_FACTOR[index] ?? 1) * 100),
+  dimmed: (WEEKDAY_FACTOR[index] ?? 1) < 1,
+}));
+
+const weatherFactorItems = WEATHER_STATS.map((stat) => ({
+  label: stat.label,
+  value: Math.round(WEATHER_FACTOR[stat.category] * 100),
+  dimmed: WEATHER_FACTOR[stat.category] < 1,
+}));
+
+const sources = [
+  {
+    name: '西山公園東側 日別来訪者数（令和7年度）',
+    role: '主データ',
+    detail: '来訪者数・天気・最高最低気温を含む365日分。100点すべての算出根拠。',
+  },
+  {
+    name: '西山公園来訪者割合 市区町村別（令和7年度）',
+    role: '主データ',
+    detail: '休日・平日それぞれの上位8市区町村。課題設定とターゲットの根拠。',
+  },
+  {
+    name: '西山公園のツツジの種類と株数',
+    role: '参考',
+    detail: '11種・合計50,025株と植栽場所。説明文での言及に使用。',
+  },
+  {
+    name: '西山動物園入場者数 月別（平成20〜令和7年度）',
+    role: '参考',
+    detail: '18年分の長期推移。',
+  },
+  {
+    name: '西山公園入場者数 月別（令和6・7年度）',
+    role: '採点に不使用',
+    detail: '動物園入場者数からの推計値と判断。下の検証を参照。',
+  },
+  {
+    name: '道の駅西山公園入場者数 月別（令和6・7年度）',
+    role: '参考',
+    detail: 'オフシーズンの訪問理由の裏づけ。',
+  },
+  {
+    name: '駐車場出庫台数（2026年4月）',
+    role: '採点に不使用',
+    detail: '1か月分のみで標本不足。出典表記も未確認のため参考掲載。',
+  },
+];
+
+const ROLE_CLASS: Record<string, string> = {
+  主データ: 'bg-emerald-100 text-emerald-900',
+  参考: 'bg-stone-100 text-stone-700',
+  採点に不使用: 'bg-rose-100 text-rose-900',
+};
+---
+
+<Layout
+  title="データ解説 | いつ行く？西山公園"
+  description="「いつ行く？西山公園」が使っている鯖江市オープンデータ7件と、見頃ウィンドウの機械的導出、天気・気温・ゆとりの配点根拠、データ品質に関する注記をまとめています。"
+>
+  <header class="sticky top-0 z-10 border-b border-stone-200 bg-stone-50/85 backdrop-blur">
+    <div class="mx-auto flex w-[min(76rem,100%-2rem)] items-center justify-between py-3">
+      <a href="/" class="text-sm font-bold tracking-tight text-stone-900">いつ行く？西山公園</a>
+      <nav aria-label="セクション">
+        <ul class="flex gap-5 text-sm text-stone-600">
+          <li><a href="/" class="transition duration-150 hover:text-emerald-700">トップに戻る</a></li>
+          <li><a href="#quality" class="transition duration-150 hover:text-emerald-700">データ品質</a></li>
+        </ul>
+      </nav>
+    </div>
+  </header>
+
+  <main class="mx-auto w-[min(76rem,100%-2rem)] pb-24">
+    <div class="py-14">
+      <p class="text-xs font-medium tracking-[0.2em] text-emerald-700 uppercase">Open data</p>
+      <h1 class="mt-2 text-3xl font-bold tracking-tight text-stone-900 sm:text-4xl">
+        点数は何から計算しているか
+      </h1>
+      <p class="mt-4 max-w-3xl leading-relaxed text-stone-600">
+        鯖江市が公開する西山公園関連のデータセット7件をすべて使用しています。うち2件を採点ロジックの中核に、
+        2件は品質検証の結果として採点から外しました。100点の全項目が{DATA_FISCAL_YEAR}の実測値から導かれています。
+      </p>
+    </div>
+
+    <div class="space-y-20">
+      <Section eyebrow="Datasets" title="使用したオープンデータ7件">
+        <ul class="divide-y divide-stone-200 rounded-2xl bg-white ring-1 ring-stone-200">
+          {
+            sources.map((source) => (
+              <li class="flex flex-wrap items-baseline gap-x-3 gap-y-2 px-5 py-4">
+                <span
+                  class={`rounded-full px-2.5 py-1 text-xs font-medium ${ROLE_CLASS[source.role] ?? ''}`}
+                >
+                  {source.role}
+                </span>
+                <p class="font-medium text-stone-900">{source.name}</p>
+                <p class="w-full text-sm text-stone-600">{source.detail}</p>
+              </li>
+            ))
+          }
+        </ul>
+      </Section>
+
+      <Section
+        eyebrow="Bloom window"
+        title="見頃は手で決めていない"
+        lead="配点が最も大きい見頃40点は、日別来訪者数365日から機械的に導いています。来訪者数を「季節成分 × 曜日係数 × 天気係数」の積とみなして反復推定し、曜日と天気の影響を取り除いた季節成分を取り出します。"
+      >
+        <ol class="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          {
+            [
+              '来訪者数を季節・曜日・天気の3成分に分解し、収束するまで反復推定する',
+              '曜日と天気を除いた季節成分を年周期で平滑化する（前後5日）',
+              '季節成分の局所最大点をピーク日とする',
+              'ピークの超過分が50%を上回る連続範囲を見頃ウィンドウとする',
+            ].map((step, index) => (
+              <li class="rounded-2xl bg-white p-5 ring-1 ring-stone-200">
+                <span class="text-xs font-bold text-emerald-700">STEP {index + 1}</span>
+                <p class="mt-2 text-sm leading-relaxed text-stone-700">{step}</p>
+              </li>
+            ))
+          }
+        </ol>
+
+        <h3 class="mt-10 text-lg font-bold text-stone-900">導出された見頃ウィンドウ</h3>
+        <div class="mt-4 overflow-x-auto rounded-2xl bg-white ring-1 ring-stone-200">
+          <table class="w-full min-w-[34rem] text-sm">
+            <caption class="sr-only">機械的に導出した見頃ウィンドウ</caption>
+            <thead>
+              <tr class="border-b border-stone-200 text-stone-500">
+                <th scope="col" class="px-5 py-3 text-left font-medium">時期</th>
+                <th scope="col" class="px-5 py-3 text-left font-medium">ウィンドウ</th>
+                <th scope="col" class="px-5 py-3 text-right font-medium">日数</th>
+                <th scope="col" class="px-5 py-3 text-right font-medium">ピーク日</th>
+                <th scope="col" class="px-5 py-3 text-right font-medium">ピークの季節成分</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-stone-100">
+              {
+                BLOOM_WINDOWS.map((window) => (
+                  <tr>
+                    <th scope="row" class="px-5 py-3 text-left font-medium text-stone-900">
+                      {window.name}
+                    </th>
+                    <td class="px-5 py-3 tabular-nums text-stone-900">
+                      {formatMonthDay(window.fromKey)} 〜 {formatMonthDay(window.toKey)}
+                    </td>
+                    <td class="px-5 py-3 text-right tabular-nums text-stone-600">
+                      {window.lengthDays} 日
+                    </td>
+                    <td class="px-5 py-3 text-right tabular-nums text-stone-600">
+                      {formatMonthDay(window.peakKey)}
+                    </td>
+                    <td class="px-5 py-3 text-right tabular-nums text-stone-900">
+                      {window.peakVisitors.toLocaleString()} 人
+                    </td>
+                  </tr>
+                ))
+              }
+            </tbody>
+          </table>
+        </div>
+        <p class="mt-4 max-w-3xl text-sm leading-relaxed text-stone-600">
+          ツツジ期は事前の推定値（5/1〜5/10）と、紅葉期は同じく（11/14〜11/25）とほぼ一致しました。
+          年間の平常水準は季節成分の中央値{Math.round(SEASONAL_BASELINE).toLocaleString()}人、
+          最大は{Math.round(SEASONAL_MAX).toLocaleString()}人です。
+          なお<strong class="font-semibold text-stone-900">ウィンドウの日付は導出結果ですが、
+          「桜」「ツツジ」「紅葉」という名前は人手で対応づけています</strong>。
+          開花期そのもののデータは市のオープンデータに存在しないため、名称は推定です。
+        </p>
+      </Section>
+
+      <Section
+        eyebrow="Factors"
+        title="分解で得られた曜日係数と天気係数"
+        lead="同じ推定から出てくる曜日係数・天気係数は、ゆとり10点の土台になる予想来訪者数（季節成分 × 曜日係数 × 天気係数）にそのまま使っています。100が平均です。"
+      >
+        <div class="grid gap-10 sm:grid-cols-2">
+          <div>
+            <h3 class="mb-4 text-sm font-bold tracking-wide text-stone-500">曜日係数</h3>
+            <BarList items={weekdayItems} unit="" color="#0369a1" />
+          </div>
+          <div>
+            <h3 class="mb-4 text-sm font-bold tracking-wide text-stone-500">天気係数</h3>
+            <BarList items={weatherFactorItems} unit="" color="#0369a1" />
+          </div>
+        </div>
+      </Section>
+
+      <Section
+        eyebrow="Weather"
+        title="天気30点の配点根拠"
+        lead="休日と平日では水準が違うため、それぞれの区分の中で最も多い天気を30点として正規化しています。"
+      >
+        <div class="overflow-x-auto rounded-2xl bg-white ring-1 ring-stone-200">
+          <table class="w-full min-w-[34rem] text-sm">
+            <caption class="sr-only">天気と平日休日ごとの1日あたり平均来訪者数と得点</caption>
+            <thead>
+              <tr class="border-b border-stone-200 text-stone-500">
+                <th scope="col" class="px-5 py-3 text-left font-medium">天気</th>
+                <th scope="col" class="px-5 py-3 text-right font-medium">休日の平均</th>
+                <th scope="col" class="px-5 py-3 text-right font-medium">休日の得点</th>
+                <th scope="col" class="px-5 py-3 text-right font-medium">平日の平均</th>
+                <th scope="col" class="px-5 py-3 text-right font-medium">平日の得点</th>
+                <th scope="col" class="px-5 py-3 text-right font-medium">該当日数</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-stone-100">
+              {
+                WEATHER_STATS.map((stat) => {
+                  const bestHoliday = Math.max(...WEATHER_STATS.map((row) => row.holiday.average));
+                  const bestWeekday = Math.max(...WEATHER_STATS.map((row) => row.weekday.average));
+                  return (
+                    <tr>
+                      <th scope="row" class="px-5 py-3 text-left font-medium text-stone-900">
+                        {stat.label}
+                      </th>
+                      <td class="px-5 py-3 text-right tabular-nums text-stone-900">
+                        {stat.holiday.average.toLocaleString()} 人
+                      </td>
+                      <td class="px-5 py-3 text-right tabular-nums text-emerald-800">
+                        {((stat.holiday.average / bestHoliday) * 30).toFixed(1)}
+                      </td>
+                      <td class="px-5 py-3 text-right tabular-nums text-stone-900">
+                        {stat.weekday.average.toLocaleString()} 人
+                      </td>
+                      <td class="px-5 py-3 text-right tabular-nums text-emerald-800">
+                        {((stat.weekday.average / bestWeekday) * 30).toFixed(1)}
+                      </td>
+                      <td class="px-5 py-3 text-right tabular-nums text-stone-500">
+                        {stat.holiday.days + stat.weekday.days} 日
+                      </td>
+                    </tr>
+                  );
+                })
+              }
+            </tbody>
+          </table>
+        </div>
+        <p class="mt-4 max-w-3xl text-sm leading-relaxed text-stone-600">
+          雪の日だけ平日が休日を上回る逆転がありますが、該当31日と標本が少なくノイズと判断しています。
+          天気予報が届かない期間（概ね16日以降）は、その月の天気の出現頻度から期待値を計算し、
+          画面上で「平年値」と表示します。
+        </p>
+      </Section>
+
+      <Section
+        eyebrow="Temperature"
+        title="気温20点の配点根拠"
+        lead="気温帯別の平均来訪者数は20〜25℃を頂点とする山型です。この曲線をそのまま配点に使い、帯の境界で点数が飛ばないよう線形補間しています。"
+      >
+        <BarList items={temperatureItems} unit="人" color="#b45309" />
+        <p class="mt-5 max-w-3xl text-sm leading-relaxed text-stone-600">
+          得点 = 20 ×（該当帯の平均来訪者数 ÷ {TEMPERATURE_PEAK.toLocaleString()}）。
+          令和7年度は30℃以上が102日を占めており、夏季の低得点は実態を反映しています。
+        </p>
+      </Section>
+
+      <Section
+        eyebrow="A year at the park"
+        title="月別の1日平均来訪者数"
+        lead="5月のツツジと11月の紅葉、年に2回の山があります。10月は冬季を除けば年間最低です。"
+      >
+        <BarList items={monthItems} unit="人" color="#15803d" />
+        <p class="mt-5 max-w-3xl text-sm leading-relaxed text-stone-600">
+          年間の1日平均は{yearStats.average.toLocaleString()}人。最多は
+          {yearStats.busiest.date.replace(/-/g, '/')}の{yearStats.busiest.visitors.toLocaleString()}人でした。
+        </p>
+      </Section>
+
+      <Section
+        eyebrow="Who comes"
+        title="来ているのは、ほとんど地元の人"
+        lead="休日でも鯖江市が52%。福井県外はほぼ現れません。だからこそ、県外から来る人にとっては「一年で一番いい日」を外さないことが重要になります。"
+      >
+        <div class="grid gap-10 sm:grid-cols-2">
+          <div>
+            <h3 class="mb-4 text-sm font-bold tracking-wide text-stone-500">休日</h3>
+            <BarList
+              items={municipalityShares.holiday.map((row, index) => ({
+                label: row.name.replace('福井県', ''),
+                value: row.share,
+                dimmed: index !== 0,
+              }))}
+              unit="%"
+              color="#0369a1"
+            />
+          </div>
+          <div>
+            <h3 class="mb-4 text-sm font-bold tracking-wide text-stone-500">平日</h3>
+            <BarList
+              items={municipalityShares.weekday.map((row, index) => ({
+                label: row.name.replace('福井県', ''),
+                value: row.share,
+                dimmed: index !== 0,
+              }))}
+              unit="%"
+              color="#0369a1"
+            />
+          </div>
+        </div>
+      </Section>
+
+      <Section
+        eyebrow="Tsutsuji"
+        title="ツツジ11種50,025株"
+        lead="説明文の中で言及しているツツジの内訳です。種類ごとの開花期データは公開されていないため、種類別の見頃表示は行っていません。"
+      >
+        <BarList items={tsutsujiItems} unit="株" color="#be185d" />
+        <p class="mt-5 text-sm text-stone-600">
+          最多のヒラドツツジが全体の
+          {Math.round(((tsutsujiSpecies[0]?.count ?? 0) / tsutsujiTotal) * 100)}%を占めます。
+        </p>
+      </Section>
+
+      <Section eyebrow="Zoo" title="動物園には18年分の記録がある">
+        <ColumnChart items={zooItems} unit="千人（年度合計）" color="#7c3aed" minWidth="min-w-[1280px]" />
+        <p class="mt-5 max-w-3xl text-sm leading-relaxed text-stone-600">
+          併設の西山動物園は入園無料です。道の駅 西山公園の令和7年度入場者数は
+          {annualTotals.michinoeki.toLocaleString()}人で、公園の人出が落ちる冬でも月1万人以上が立ち寄っています。
+        </p>
+      </Section>
+
+      <Section
+        id="quality"
+        eyebrow="Data quality"
+        title="足してはいけない数字がある"
+        lead="公開されている3つの入場者数は測り方が異なります。西山公園の入場者数は実測ではなく、動物園の入場者数から機械的に計算された推計値でした。"
+      >
+        <div class="overflow-x-auto rounded-2xl bg-white ring-1 ring-stone-200">
+          <table class="w-full min-w-[34rem] text-sm">
+            <caption class="sr-only">令和7年度の月別入場者数と、公園÷動物園の比</caption>
+            <thead>
+              <tr class="border-b border-stone-200 text-stone-500">
+                <th scope="col" class="px-5 py-3 text-left font-medium">月</th>
+                <th scope="col" class="px-5 py-3 text-right font-medium">公園</th>
+                <th scope="col" class="px-5 py-3 text-right font-medium">動物園</th>
+                <th scope="col" class="px-5 py-3 text-right font-medium">公園 ÷ 動物園</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-stone-100">
+              {
+                parkZooRatios.map((row) => (
+                  <tr>
+                    <th scope="row" class="px-5 py-3 text-left font-medium text-stone-900">
+                      {row.month}
+                    </th>
+                    <td class="px-5 py-3 text-right tabular-nums text-stone-600">
+                      {row.park.toLocaleString()}
+                    </td>
+                    <td class="px-5 py-3 text-right tabular-nums text-stone-600">
+                      {row.zoo.toLocaleString()}
+                    </td>
+                    <td class="px-5 py-3 text-right font-semibold tabular-nums text-rose-700">
+                      {row.ratio.toFixed(2)}
+                    </td>
+                  </tr>
+                ))
+              }
+            </tbody>
+          </table>
+        </div>
+        <p class="mt-5 max-w-3xl leading-relaxed text-stone-600">
+          12か月すべてで比が<strong class="font-semibold text-stone-900">ちょうど5.00か3.00</strong>
+          になります。花の時期（4・5・9・10・11月）は5倍、それ以外は3倍。令和6年度の12か月も同じでした。
+          この倍率区分は実態とも合っていません。10月は5倍（花の時期）に分類されていますが日別来訪者数は年間最低クラスで、
+          3月下旬は桜の時期にあたりますが3倍側です。
+        </p>
+        <p class="mt-4 max-w-3xl leading-relaxed text-stone-600">
+          日別来訪者数も365日すべてが10の倍数で、10人単位に丸められています。最小値の0人は
+          「誰も来なかった」ではなく「10人未満」を意味します。{DATA_AREA}を対象とした{DATA_NOTE}
+        </p>
+
+        <h3 class="mt-12 text-lg font-bold text-stone-900">駐車場の出庫台数（採点に不使用）</h3>
+        <p class="mt-2 max-w-3xl leading-relaxed text-stone-600">
+          2026年4月の1か月分のみで、各曜日4〜5標本しかありません。金曜が土曜を上回るなど傾向として読み取るには不十分で、
+          出典表記も未確認のため採点には使わず参考として掲載しています。
+        </p>
+        <div class="mt-6">
+          <BarList items={parkingItems} unit="台" color="#57534e" />
+        </div>
+      </Section>
+
+      <Section
+        eyebrow="Proposal"
+        title="日別の実測値が公開されているから、これができた"
+        lead="ここまでの指摘は市のデータへの批判ではなく、改善提案として書いています。"
+      >
+        <div class="rounded-2xl bg-white p-6 leading-relaxed text-stone-600 ring-1 ring-stone-200 sm:p-8">
+          <p>
+            天気・気温・曜日を組み合わせた採点が可能になったのは、日別の実測データが公開されていたからです。
+            月別の推計値だけでは、このアプリは成立しませんでした。
+          </p>
+          <p class="mt-4">
+            他施設についても日別実測値の公開が進めば、同じ分析を広く適用できます。
+            あわせて、推計値には推計である旨と算出方法の併記があると、利用者が採点根拠として使えるかを判断できます。
+          </p>
+        </div>
+      </Section>
+    </div>
+  </main>
+
+  <footer class="border-t border-stone-200 bg-white">
+    <div class="mx-auto w-[min(76rem,100%-2rem)] py-10 text-sm text-stone-500">
+      <p>
+        出典: 鯖江市オープンデータ（西山公園関連7データセット） / 天気予報: Open-Meteo
+      </p>
+      <p class="mt-2">
+        点数は過去実績にもとづく参考値であり、実際の見頃や混雑を保証するものではありません。
+      </p>
+      <p class="mt-4">
+        <a href="/" class="font-medium text-emerald-700 hover:underline">トップに戻る</a>
+      </p>
+    </div>
+  </footer>
+</Layout>

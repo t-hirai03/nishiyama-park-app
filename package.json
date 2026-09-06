@@ -8,9 +8,11 @@
   "scripts": {
     "dev": "astro dev",
     "build": "astro build",
+    "build:data": "node scripts/build-data.mjs",
     "preview": "astro preview",
     "astro": "astro",
-    "optimize:images": "node scripts/optimize-images.mjs"
+    "optimize:images": "node scripts/optimize-images.mjs",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@astrojs/react": "^6.0.4",
@@ -23,7 +25,9 @@
     "tailwindcss": "^4.3.3"
   },
   "devDependencies": {
+    "@astrojs/check": "^0.9.10",
     "sharp": "^0.35.3",
+    "typescript": "^7.0.2",
     "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz"
   }
 }

@@ -1,0 +1,156 @@
+{
+  "month": "2026-04",
+  "note": "出典未確認のため補助指標として扱う。",
+  "days": [
+    {
+      "day": 1,
+      "weekday": "水",
+      "exits": 263
+    },
+    {
+      "day": 2,
+      "weekday": "木",
+      "exits": 1090
+    },
+    {
+      "day": 3,
+      "weekday": "金",
+      "exits": 1782
+    },
+    {
+      "day": 4,
+      "weekday": "土",
+      "exits": 374
+    },
+    {
+      "day": 5,
+      "weekday": "日",
+      "exits": 1468
+    },
+    {
+      "day": 6,
+      "weekday": "月",
+      "exits": 976
+    },
+    {
+      "day": 7,
+      "weekday": "火",
+      "exits": 159
+    },
+    {
+      "day": 8,
+      "weekday": "水",
+      "exits": 502
+    },
+    {
+      "day": 9,
+      "weekday": "木",
+      "exits": 286
+    },
+    {
+      "day": 10,
+      "weekday": "金",
+      "exits": 163
+    },
+    {
+      "day": 11,
+      "weekday": "土",
+      "exits": 637
+    },
+    {
+      "day": 12,
+      "weekday": "日",
+      "exits": 777
+    },
+    {
+      "day": 13,
+      "weekday": "月",
+      "exits": 241
+    },
+    {
+      "day": 14,
+      "weekday": "火",
+      "exits": 187
+    },
+    {
+      "day": 15,
+      "weekday": "水",
+      "exits": 153
+    },
+    {
+      "day": 16,
+      "weekday": "木",
+      "exits": 209
+    },
+    {
+      "day": 17,
+      "weekday": "金",
+      "exits": 288
+    },
+    {
+      "day": 18,
+      "weekday": "土",
+      "exits": 518
+    },
+    {
+      "day": 19,
+      "weekday": "日",
+      "exits": 567
+    },
+    {
+      "day": 20,
+      "weekday": "月",
+      "exits": 287
+    },
+    {
+      "day": 21,
+      "weekday": "火",
+      "exits": 194
+    },
+    {
+      "day": 22,
+      "weekday": "水",
+      "exits": 230
+    },
+    {
+      "day": 23,
+      "weekday": "木",
+      "exits": 237
+    },
+    {
+      "day": 24,
+      "weekday": "金",
+      "exits": 471
+    },
+    {
+      "day": 25,
+      "weekday": "土",
+      "exits": 765
+    },
+    {
+      "day": 26,
+      "weekday": "日",
+      "exits": 913
+    },
+    {
+      "day": 27,
+      "weekday": "月",
+      "exits": 363
+    },
+    {
+      "day": 28,
+      "weekday": "火",
+      "exits": 498
+    },
+    {
+      "day": 29,
+      "weekday": "水",
+      "exits": 955
+    },
+    {
+      "day": 30,
+      "weekday": "木",
+      "exits": 583
+    }
+  ]
+}

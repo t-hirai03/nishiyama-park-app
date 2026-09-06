@@ -6,7 +6,7 @@ import sharp from 'sharp'
 
 const SRC = 'data/raw/images'
 const OUT = 'src/assets/images'
-const MAX_EDGE = 2400
+const MAX_WIDTH = 1440
 const QUALITY = 82
 
 const categories = (await readdir(SRC, { withFileTypes: true }))
@@ -32,7 +32,8 @@ for (const category of categories) {
     const { width, height } = await image.metadata()
 
     await image
-      .resize(MAX_EDGE, MAX_EDGE, { fit: 'inside', withoutEnlargement: true })
+      .rotate()
+      .resize({ width: MAX_WIDTH, withoutEnlargement: true })
       .webp({ quality: QUALITY })
       .toFile(to)
 
