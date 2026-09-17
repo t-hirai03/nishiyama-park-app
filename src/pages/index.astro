@@ -2,11 +2,19 @@
 import { Picture } from 'astro:assets';
 import type { ImageMetadata } from 'astro';
 import Layout from '../layouts/Layout.astro';
-import Section from '../components/Section.astro';
-import { VisitPlanner } from '../components/VisitPlanner';
+import {
+  BUS_STOPS,
+  GEO_SOURCE,
+  NEARBY_SPOTS,
+  PARK_ROUTES,
+  STATIONS,
+  TOILETS,
+  spotsByGenre,
+} from '../lib/geo';
+import { ParkStatus } from '../components/ParkStatus';
+import { ParkMap } from '../components/ParkMap';
 import { formatMonthDay } from '../lib/days';
 import { BLOOM_WINDOWS } from '../lib/seasonality';
-import { yearStats } from '../lib/insights';
 
 const loadImages = (records: Record<string, { default: ImageMetadata }>) =>
   Object.entries(records)
@@ -19,8 +27,6 @@ const tsutsujiPhotos = loadImages(
 const kouyouPhotos = loadImages(
   import.meta.glob<{ default: ImageMetadata }>('../assets/images/kouyou/*.webp', { eager: true })
 );
-
-const heroPhoto = tsutsujiPhotos[0];
 
 const windowOf = (id: string) => BLOOM_WINDOWS.find((window) => window.id === id);
 const tsutsujiWindow = windowOf('tsutsuji');
@@ -46,150 +52,278 @@ const galleries = [
     alt: '西山公園 嚮陽庭園の紅葉',
   },
 ];
+const WALKABLE_MINUTES = 15;
+const walkableStations = STATIONS.filter((station) => station.walkMinutes <= WALKABLE_MINUTES);
+const parkBusStops = BUS_STOPS.filter((stop) => stop.distanceM <= 200);
+const parkToilets = TOILETS.filter((toilet) => toilet.inPark);
+const barrierFreeCount = parkToilets.filter((toilet) => toilet.barrierFree).length;
+const genreGroups = spotsByGenre();
+const linkedCount = NEARBY_SPOTS.filter((spot) => spot.homepage).length;
+const stationByName = (name: string) => STATIONS.find((station) => station.name === name);
+
+const PANELS = [
+  { id: 'today', label: '今日' },
+  { id: 'around', label: '寄り道' },
+  { id: 'access', label: 'アクセス' },
+  { id: 'highlights', label: '見どころ' },
+];
+
 ---
 
 <Layout
-  title="いつ行く？西山公園 | 鯖江市オープンデータで訪問日を100点採点"
-  description="福井県鯖江市の西山公園に、いつ行くのが一番いいか。市が公開する日別来訪者数365日分と天気予報から、見頃・天気・気温・ゆとりを100点で採点します。オープンデータ活用アプリコンテスト2026 応募作品。"
+  title="西山公園は駅から歩ける | 鯖江市オープンデータで見る西山公園"
+  description="福井県鯖江市の西山公園は、福井鉄道西山公園駅から徒歩1分。市が公開する座標データで測った駅・バス停・周辺スポットの分布と、日別来訪者数365日分から見た今日の混雑を地図で掲載。オープンデータ活用アプリコンテスト2026 応募作品。"
 >
-  <header class="sticky top-0 z-10 border-b border-stone-200 bg-stone-50/85 backdrop-blur">
-    <div class="mx-auto flex w-[min(76rem,100%-2rem)] items-center justify-between py-3">
-      <a href="#top" class="text-sm font-bold tracking-tight text-stone-900">いつ行く？西山公園</a>
-      <nav aria-label="セクション">
-        <ul class="flex gap-5 text-sm text-stone-600">
-          <li><a href="#plan" class="transition duration-150 hover:text-emerald-700">いつ行く</a></li>
-          <li><a href="#tsutsuji" class="transition duration-150 hover:text-emerald-700">見どころ</a></li>
-          <li><a href="/data" class="transition duration-150 hover:text-emerald-700">データ解説</a></li>
-        </ul>
-      </nav>
-    </div>
-  </header>
-
-  <main id="top">
-    <section class="relative isolate overflow-hidden">
-      {
-        heroPhoto && (
-          <Picture
-            src={heroPhoto}
-            alt="斜面いっぱいに咲く西山公園のツツジ"
-            formats={['avif', 'webp']}
-            fallbackFormat="webp"
-            width={1440}
-            widths={[640, 1024, 1440]}
-            sizes="100vw"
-            quality={48}
-            loading="eager"
-            pictureAttributes={{ class: 'contents' }}
-            class="absolute inset-0 -z-10 h-full w-full object-cover"
-          />
-        )
-      }
-      <div class="absolute inset-0 -z-10 bg-gradient-to-br from-stone-950/85 via-stone-900/65 to-stone-900/30"></div>
-      <div class="mx-auto w-[min(76rem,100%-2rem)] py-20 sm:py-28">
-        <p class="text-xs font-medium tracking-[0.2em] text-emerald-300 uppercase">
-          Fukui / Sabae — Nishiyama Park
-        </p>
-        <h1 class="mt-4 text-4xl leading-tight font-bold tracking-tight text-white sm:text-6xl">
-          <span class="block">西山公園に行くなら、</span>
-          <span class="block">いつがいいか。</span>
-        </h1>
-        <p class="mt-5 max-w-2xl leading-relaxed text-stone-200">
-          鯖江市が公開する<strong class="font-semibold text-white">日別来訪者数365日分</strong>と天気予報から、
-          見頃・天気・気温・ゆとりの4項目を100点で採点します。
-          目的や同行者を変えると、同じ365日から返ってくる日が変わります。
-        </p>
-        <p class="mt-8 text-sm text-stone-300">
-          年間で最も多かったのは{yearStats.busiest.date.replace(/-/g, '/')}の
-          {yearStats.busiest.visitors.toLocaleString()}人。最も静かだったのは
-          {yearStats.quietest.date.replace(/-/g, '/')}で、推計10人未満でした。
+  <div class="flex flex-col lg:h-dvh">
+    <header
+      class="flex h-14 shrink-0 items-center justify-between gap-4 border-b border-stone-200 bg-white px-4 sm:px-6"
+    >
+      <div class="flex min-w-0 items-baseline gap-2.5">
+        <p class="text-sm font-bold tracking-tight text-stone-900">西山公園</p>
+        <p class="hidden truncate text-xs text-stone-500 sm:block">
+          福井県鯖江市 — 鯖江市オープンデータで見る
         </p>
       </div>
-    </section>
+      <a
+        href="https://data.city.sabae.lg.jp/"
+        target="_blank"
+        rel="noopener noreferrer"
+        class="shrink-0 text-xs text-stone-500 underline decoration-stone-300 underline-offset-4 transition duration-150 hover:text-stone-900"
+      >
+        出典: 鯖江市オープンデータ
+      </a>
+    </header>
 
-    <div class="mx-auto w-[min(76rem,100%-2rem)] pb-24">
-      <section id="plan" class="scroll-mt-20 py-12">
-        <p class="text-xs font-medium tracking-[0.2em] text-emerald-700 uppercase">Plan your visit</p>
-        <h2 class="mt-2 text-2xl font-bold tracking-tight text-stone-900 sm:text-3xl">
-          あなたが行くなら、いつが正解か
-        </h2>
-        <div class="mt-7">
-          <VisitPlanner client:load />
-        </div>
-      </section>
-
-      <div class="space-y-20 pt-8">
-        {
-          galleries.map((gallery) => (
-            <Section
-              id={gallery.id}
-              eyebrow={gallery.eyebrow}
-              title={gallery.title}
-              lead={gallery.lead}
-            >
-              {gallery.window && (
-                <p class="-mt-3 mb-7 text-sm leading-relaxed text-stone-500">
-                  導出した見頃ウィンドウ: {formatMonthDay(gallery.window.fromKey)}〜
-                  {formatMonthDay(gallery.window.toKey)}（{gallery.window.lengthDays}日間、ピークは
-                  {formatMonthDay(gallery.window.peakKey)}前後）
-                </p>
-              )}
-              <ul class="grid grid-cols-2 gap-3 sm:grid-cols-4">
-                {gallery.photos.map((photo, index) => (
-                  <li
-                    class={
-                      index === 0 ? 'relative col-span-2 row-span-2 overflow-hidden rounded-2xl' : ''
-                    }
-                  >
-                    <Picture
-                      src={photo}
-                      formats={['avif', 'webp']}
-                      fallbackFormat="webp"
-                      pictureAttributes={{ class: 'contents' }}
-                      alt={`${gallery.alt} ${index + 1}`}
-                      width={640}
-                      widths={[320, 640]}
-                      sizes="(min-width: 640px) 25vw, 50vw"
-                      quality={62}
-                      loading="lazy"
-                      class={
-                        index === 0
-                          ? 'absolute inset-0 h-full w-full object-cover'
-                          : 'aspect-[4/3] w-full rounded-2xl object-cover'
-                      }
-                    />
-                  </li>
-                ))}
-              </ul>
-            </Section>
-          ))
-        }
-
-        <Section
-          eyebrow="How it works"
-          title="点数の根拠はすべて実測値にある"
-          lead="100点の内訳は、見頃40点・天気30点・気温20点・ゆとり10点（標準）。配点の比率は目的や同行者で変わりますが、各項目の得点はいずれも令和7年度の実測365日から計算しています。"
+    <div class="flex flex-col-reverse lg:min-h-0 lg:flex-1 lg:flex-row">
+      <aside
+        id="panel"
+        class="flex w-full shrink-0 flex-col border-stone-200 bg-stone-50 lg:w-[27rem] lg:border-r"
+      >
+        <nav
+          class="flex shrink-0 gap-1 overflow-x-auto border-b border-stone-200 bg-white px-3 py-2"
+          aria-label="パネル内のセクション"
         >
-          <a
-            href="/data"
-            class="inline-flex items-center gap-2 rounded-full bg-stone-900 px-6 py-3 text-sm font-medium text-white transition duration-150 hover:bg-stone-700"
-          >
-            データ解説を見る
-            <span aria-hidden="true">→</span>
-          </a>
-        </Section>
-      </div>
-    </div>
-  </main>
+          {
+            PANELS.map((panel) => (
+              <a
+                href={`#${panel.id}`}
+                class="shrink-0 rounded-full px-3 py-1.5 text-xs text-stone-600 transition duration-150 hover:bg-stone-100 hover:text-stone-900"
+              >
+                {panel.label}
+              </a>
+            ))
+          }
+        </nav>
 
-  <footer class="border-t border-stone-200 bg-white">
-    <div class="mx-auto w-[min(76rem,100%-2rem)] py-10 text-sm text-stone-500">
-      <p>
-        オープンデータ活用アプリコンテスト2026 応募作品（主催: 鯖江市 / 企画運営: NPO法人エル・コミュニティ）
-      </p>
-      <p class="mt-2">
-        出典: 鯖江市オープンデータ / 天気予報は Open-Meteo。
-        点数は過去実績にもとづく参考値であり、実際の見頃や混雑を保証するものではありません。
-      </p>
+        <div class="px-4 py-5 sm:px-5 lg:min-h-0 lg:flex-1 lg:overflow-y-auto lg:overscroll-contain">
+          <section id="today" class="scroll-mt-4">
+            <ParkStatus client:load />
+          </section>
+
+          <section id="around" class="mt-9 scroll-mt-4">
+            <h2 class="text-base font-bold tracking-tight text-stone-900">
+              公園を出てから、どこへ寄れるか
+            </h2>
+            <p class="mt-2 text-xs leading-relaxed text-stone-500">
+              鯖江市の観光データから、西山公園を中心に半径900m以内のスポット{NEARBY_SPOTS.length}件。
+              地図のピンと対応しています。
+            </p>
+
+            <div class="mt-5 space-y-6">
+              {
+                genreGroups.map((group) => (
+                  <div>
+                    <h3 class="flex items-baseline gap-2 text-sm font-bold text-stone-900">
+                      {group.genre}
+                      <span class="font-normal text-stone-400">{group.spots.length}件</span>
+                    </h3>
+                    <ul class="mt-2">
+                      {group.spots.slice(0, 5).map((spot) => (
+                        <li class="-mx-2 flex items-center justify-between gap-4 rounded-lg px-2 py-2 transition duration-150 hover:bg-stone-100">
+                          <span class="min-w-0">
+                            {spot.homepage ? (
+                              <a
+                                href={spot.homepage}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                class="block truncate text-sm font-bold text-stone-900 underline decoration-stone-300 decoration-1 underline-offset-4 transition duration-150 hover:decoration-emerald-600"
+                              >
+                                {spot.name}
+                              </a>
+                            ) : (
+                              <span class="block truncate text-sm font-bold text-stone-900">
+                                {spot.name}
+                              </span>
+                            )}
+                            <span class="mt-0.5 block truncate text-xs text-stone-400">
+                              {spot.category}
+                            </span>
+                          </span>
+                          <span class="shrink-0 text-right">
+                            <span class="block text-sm font-bold text-stone-900 tabular-nums">
+                              徒歩{spot.walkMinutes}分
+                            </span>
+                            <span class="mt-0.5 block text-xs text-stone-400 tabular-nums">
+                              {spot.distanceM}m
+                            </span>
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                    {group.spots.length > 5 && (
+                      <p class="mt-1.5 text-xs text-stone-400">
+                        ほか{group.spots.length - 5}件は地図のピンで確認できます
+                      </p>
+                    )}
+                  </div>
+                ))
+              }
+              <p class="text-xs leading-relaxed text-stone-400">
+                下線つきの名称は、データセットに収録されたURLへのリンクです（{linkedCount}/
+                {NEARBY_SPOTS.length}件）。収録時点のURLなので、現在は繋がらない場合があります。
+              </p>
+            </div>
+          </section>
+
+          <section id="access" class="mt-9 scroll-mt-4">
+            <h2 class="text-base font-bold tracking-tight text-stone-900">車がなくても、駅から歩ける</h2>
+            <p class="mt-2 text-xs leading-relaxed text-stone-500">
+              鯖江市は福井鉄道西山公園駅から徒歩1分、JR鯖江駅から直線距離で約1.2km・徒歩約15分と
+              案内しています。
+            </p>
+
+            <h3 class="mt-5 text-sm font-bold text-stone-900">駅からの距離（公開座標で実測）</h3>
+            <p class="mt-2 text-xs leading-relaxed text-stone-500">
+              最寄りの<strong class="font-semibold text-stone-700">西山公園駅は下表にありません</strong>。
+              手元のオープンデータに鉄道駅そのものの座標が無く、駅前バス停の座標で代用しているためです。
+              西山公園駅前にはバス停がありません。
+            </p>
+            <ul class="mt-3">
+              {
+                walkableStations.map((station) => (
+                  <li class="flex items-center justify-between gap-4 border-b border-stone-200 py-2.5">
+                    <span class="text-sm font-bold text-stone-900">{station.name}</span>
+                    <span class="shrink-0 text-right">
+                      <span class="block text-sm font-bold text-stone-900 tabular-nums">
+                        徒歩{station.walkMinutes}分
+                      </span>
+                      <span class="mt-0.5 block text-xs text-stone-400 tabular-nums">
+                        {station.distanceM.toLocaleString()}m
+                      </span>
+                    </span>
+                  </li>
+                ))
+              }
+            </ul>
+
+            <h3 class="mt-6 text-sm font-bold text-stone-900">園内に停まるバス停</h3>
+            <p class="mt-2 text-xs leading-relaxed text-stone-500">
+              公園に直接停まるのは{PARK_ROUTES.join('・')}のみです（バス停{BUS_STOPS.length}件の
+              路線名から集計）。園内には誰でも使えるトイレが{parkToilets.length}箇所あり、うち
+              {barrierFreeCount}箇所がバリアフリー対応です。
+            </p>
+            <ul class="mt-3">
+              {
+                parkBusStops.map((stop) => (
+                  <li class="flex items-center justify-between gap-4 border-b border-stone-200 py-2.5">
+                    <span class="min-w-0">
+                      <span class="block truncate text-sm font-bold text-stone-900">{stop.name}</span>
+                      <span class="mt-0.5 block truncate text-xs text-stone-400">
+                        {stop.routes.join('・')}
+                      </span>
+                    </span>
+                    <span class="shrink-0 text-sm font-bold text-stone-900 tabular-nums">
+                      {stop.distanceM}m
+                    </span>
+                  </li>
+                ))
+              }
+            </ul>
+
+            <div class="mt-5 space-y-2.5 border-t border-stone-200 pt-4">
+              <p class="text-xs leading-relaxed text-stone-400">{GEO_SOURCE.note}</p>
+              <p class="text-xs leading-relaxed text-stone-400">
+                徒歩1分・約15分は
+                <a
+                  href="https://www.city.sabae.fukui.jp/kurashi_tetsuduki/doro_kasen_koen/koen/nishiyama/nishiyama_kotsu.html"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  class="underline decoration-stone-300 underline-offset-4 hover:text-stone-700"
+                  >鯖江市「西山公園 交通のご案内」</a
+                >の記載です。JR鯖江駅までの距離は市の案内が約1.2km、公開座標からの実測が
+                {stationByName('鯖江駅')?.distanceM.toLocaleString()}mで一致しません。
+                駅舎のどこを起点にするかで差が出ます。
+              </p>
+            </div>
+          </section>
+
+          <section id="highlights" class="mt-9 scroll-mt-4">
+            <h2 class="text-base font-bold tracking-tight text-stone-900">見どころ</h2>
+            <div class="mt-4 space-y-7">
+              {
+                galleries.map((gallery) => (
+                  <div>
+                    <h3 class="flex items-baseline gap-2 text-sm font-bold text-stone-900">
+                      {gallery.title}
+                      {gallery.window && (
+                        <span class="font-normal text-stone-400">
+                          {formatMonthDay(gallery.window.fromKey)}〜
+                          {formatMonthDay(gallery.window.toKey)}
+                        </span>
+                      )}
+                    </h3>
+                    <p class="mt-1.5 text-xs leading-relaxed text-stone-500">{gallery.lead}</p>
+                    <ul class="mt-3 grid grid-cols-3 gap-2">
+                      {gallery.photos.slice(0, 6).map((photo, index) => (
+                        <li>
+                          <Picture
+                            src={photo}
+                            formats={['avif', 'webp']}
+                            fallbackFormat="webp"
+                            pictureAttributes={{ class: 'contents' }}
+                            alt={`${gallery.alt} ${index + 1}`}
+                            width={320}
+                            widths={[160, 320]}
+                            sizes="(min-width: 1024px) 8rem, 30vw"
+                            quality={60}
+                            loading="lazy"
+                            class="aspect-[4/3] w-full rounded-lg object-cover"
+                          />
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ))
+              }
+            </div>
+          </section>
+
+          <footer class="mt-9 border-t border-stone-200 pt-5 pb-2">
+            <p class="text-xs leading-relaxed text-stone-400">
+              オープンデータ活用アプリコンテスト2026 応募作品（主催: 鯖江市 / 企画運営: NPO法人エル・コミュニティ）
+            </p>
+            <p class="mt-2 text-xs leading-relaxed text-stone-400">
+              出典: 鯖江市オープンデータ（日別来訪者数・観光・公共トイレ・バス停 / CC BY 2.1） /
+              天気予報は Open-Meteo / 地図は
+              <a
+                href="https://maps.gsi.go.jp/development/ichiran.html"
+                target="_blank"
+                rel="noopener noreferrer"
+                class="underline decoration-stone-300 underline-offset-4 hover:text-stone-700"
+                >地理院タイル</a
+              >（国土地理院）。
+            </p>
+            <p class="mt-2 text-xs leading-relaxed text-stone-400">
+              予想人出は過去実績にもとづく推計値、距離は公開座標からの直線距離です。
+              実際の混雑や徒歩時間を保証するものではありません。
+            </p>
+          </footer>
+        </div>
+      </aside>
+
+      <main class="h-[60dvh] shrink-0 lg:h-auto lg:min-h-0 lg:flex-1 lg:shrink">
+        <ParkMap client:only="react" />
+      </main>
     </div>
-  </footer>
+  </div>
 </Layout>
