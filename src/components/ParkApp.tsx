@@ -7,18 +7,24 @@ import {
   GENRE_ORDER,
   GEO_SOURCE,
   NEARBY_SPOTS,
+  PARK_PLACES,
   PARK_ROUTES,
   STATIONS,
   TOILETS,
+  TRAVEL_MODES,
+  directionsUrlBetween,
   groupBusStops,
+  haversineM,
   primaryGenre,
   roundTripM,
   routeUrl,
   spotKey,
   walkMinutesOf,
+  type Anchor,
   type Genre,
   type Placed,
   type Spot,
+  type TravelMode,
 } from '../lib/geo';
 
 /** Googleマップの経路URLが受け取れる中継地点の上限 */
@@ -46,6 +52,12 @@ const PARK_BUS_STOPS = groupBusStops(BUS_STOPS.filter((stop) => stop.distanceM <
 const PARK_TOILETS = TOILETS.filter((toilet) => toilet.inPark);
 const BARRIER_FREE = PARK_TOILETS.filter((toilet) => toilet.barrierFree).length;
 const LINKED_SPOTS = NEARBY_SPOTS.filter((spot) => spot.homepage).length;
+const ORIGINS: readonly Anchor[] = [...WALKABLE_STATIONS, ...PARK_BUS_STOPS];
+
+/** これを超えたら歩く距離ではないので徒歩時間を出さない */
+const FAR_M = 5_000;
+
+type OriginKind = 'preset' | 'current' | 'picked';
 
 const Chip = ({
   on,
@@ -83,7 +95,13 @@ export const ParkApp = ({ highlights }: { highlights: readonly Highlight[] }) =>
   const [genres, setGenres] = useState<ReadonlySet<Genre>>(() => new Set(GENRE_ORDER));
   const [focus, setFocus] = useState<Placed | null>(null);
   const [stops, setStops] = useState<readonly Spot[]>([]);
-  const [origin, setOrigin] = useState<Placed | null>(null);
+  // 現在地と地図で指した地点はどちらも候補外の座標なので、種類を別に持つ
+  const [from, setFrom] = useState<{ kind: OriginKind; place: Anchor } | null>(null);
+  const [to, setTo] = useState<Anchor>(PARK_PLACES[0] as Anchor);
+  const [mode, setMode] = useState<TravelMode>('walking');
+  const [picking, setPicking] = useState(false);
+  const [geoError, setGeoError] = useState<string | null>(null);
+  const [locating, setLocating] = useState(false);
   const [highlightId, setHighlightId] = useState(highlights[0]?.id ?? '');
   const [viewerIndex, setViewerIndex] = useState<number | null>(null);
 
@@ -116,6 +134,7 @@ export const ParkApp = ({ highlights }: { highlights: readonly Highlight[] }) =>
   );
 
   const selectedKeys = useMemo(() => new Set(stops.map(spotKey)), [stops]);
+  const linkM = useMemo(() => (from ? Math.round(haversineM(from.place, to)) : 0), [from, to]);
   const totalM = useMemo(() => Math.round(roundTripM(stops)), [stops]);
 
   const toggleStop = (spot: Spot) =>
@@ -144,7 +163,14 @@ export const ParkApp = ({ highlights }: { highlights: readonly Highlight[] }) =>
             onToggleLayer={toggleLayer}
             focus={focus}
             route={stops}
-            link={origin}
+            link={from ? { from: from.place, to } : null}
+            marker={from && from.kind !== 'preset' ? from.place : null}
+            picking={picking}
+            onPick={(point) => {
+              setFrom({ kind: 'picked', place: { name: '地図で指した地点', ...point } });
+              setPicking(false);
+              setGeoError(null);
+            }}
             panelOpen={panel !== null}
           />
         </main>
@@ -299,50 +325,141 @@ export const ParkApp = ({ highlights }: { highlights: readonly Highlight[] }) =>
               {panel === 'access' && (
                 <>
                   <PanelHead
-                    title="車がなくても、駅から歩ける"
-                    lead="出発地を選ぶと、公園までの直線と距離が地図に出ます。鯖江市は福井鉄道西山公園駅から徒歩1分、JR鯖江駅から直線距離で約1.2km・徒歩約15分と案内しています。"
+                    title="ここから、どれくらいか"
+                    lead="出発地と園内の目的地を選ぶと、直線距離と徒歩時間を出します。現在地や地図で指した地点も使えます。"
                   />
 
-                  <div className="mt-4 flex flex-wrap gap-1.5">
-                    {[...WALKABLE_STATIONS, ...PARK_BUS_STOPS].map((place) => (
+                  <p className="mt-4 text-xs font-bold text-stone-900">出発地</p>
+                  <div className="mt-2 flex flex-wrap gap-1.5">
+                    <Chip
+                      on={from?.kind === 'current'}
+                      label={locating ? '取得中…' : '現在地'}
+                      onClick={() => {
+                        setPicking(false);
+                        setGeoError(null);
+                        if (!navigator.geolocation) {
+                          setGeoError('この端末では現在地を取得できません。');
+                          return;
+                        }
+                        setLocating(true);
+                        navigator.geolocation.getCurrentPosition(
+                          (position) => {
+                            setFrom({
+                              kind: 'current',
+                              place: {
+                                name: '現在地',
+                                lat: position.coords.latitude,
+                                lon: position.coords.longitude,
+                              },
+                            });
+                            setLocating(false);
+                          },
+                          () => {
+                            setGeoError('現在地を取得できませんでした。位置情報の許可を確認してください。');
+                            setLocating(false);
+                          },
+                          { timeout: 10_000 }
+                        );
+                      }}
+                    />
+                    <Chip
+                      on={picking || from?.kind === 'picked'}
+                      label={picking ? '地図を押して指定' : '地図で指す'}
+                      onClick={() => {
+                        setPicking((current) => !current);
+                        setGeoError(null);
+                      }}
+                    />
+                    {ORIGINS.map((place) => (
                       <Chip
                         key={spotKey(place)}
-                        on={origin !== null && spotKey(origin) === spotKey(place)}
+                        on={from?.kind === 'preset' && spotKey(from.place) === spotKey(place)}
                         label={place.name}
-                        onClick={() =>
-                          setOrigin((current) =>
-                            current && spotKey(current) === spotKey(place) ? null : place
-                          )
-                        }
+                        onClick={() => {
+                          setFrom({ kind: 'preset', place });
+                          setPicking(false);
+                          setGeoError(null);
+                        }}
+                      />
+                    ))}
+                  </div>
+
+                  <p className="mt-5 text-xs font-bold text-stone-900">園内のどこへ</p>
+                  <div className="mt-2 flex flex-wrap gap-1.5">
+                    {PARK_PLACES.map((place) => (
+                      <Chip
+                        key={spotKey(place)}
+                        on={spotKey(to) === spotKey(place)}
+                        label={place.name}
+                        onClick={() => setTo(place)}
                       />
                     ))}
                   </div>
 
                   <div className="mt-4 rounded-2xl bg-brand-50 p-4">
-                    {origin ? (
+                    {geoError ? (
+                      <p className="text-xs leading-relaxed text-rose-700">{geoError}</p>
+                    ) : from ? (
                       <>
-                        <p className="text-xs text-stone-500">{origin.name} から西山公園まで</p>
-                        <p className="mt-1.5 text-3xl font-bold tracking-tight text-stone-900 tabular-nums">
-                          徒歩{origin.walkMinutes}
-                          <span className="ml-1 text-base font-medium text-stone-500">分</span>
-                          <span className="ml-3 text-base font-medium text-stone-500">
-                            {origin.distanceM.toLocaleString()}m
-                          </span>
+                        <p className="text-xs text-stone-500">
+                          {from.place.name} → {to.name}
                         </p>
+                        <p className="mt-1.5 text-3xl font-bold tracking-tight text-stone-900 tabular-nums">
+                          {linkM >= 1000
+                            ? `${(linkM / 1000).toFixed(1)}`
+                            : linkM.toLocaleString()}
+                          <span className="ml-1 text-base font-medium text-stone-500">
+                            {linkM >= 1000 ? 'km' : 'm'}
+                          </span>
+                          {linkM <= FAR_M && (
+                            <span className="ml-3 text-base font-medium text-stone-500">
+                              徒歩{walkMinutesOf(linkM)}分
+                            </span>
+                          )}
+                        </p>
+                        <p className="mt-1.5 text-xs leading-relaxed text-stone-500">
+                          {linkM <= FAR_M
+                            ? '直線距離を80m=1分・切り上げで換算した目安です。実際の経路とは異なります。'
+                            : '歩く距離ではないので、徒歩時間は出していません。下から移動手段を選ぶとGoogleマップで所要時間が見られます。'}
+                        </p>
+
+                        <div className="mt-3 flex flex-wrap gap-1.5">
+                          {TRAVEL_MODES.map((travel) => (
+                            <a
+                              key={travel.id}
+                              href={directionsUrlBetween(from.place, to, travel.id)}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              onClick={() => setMode(travel.id)}
+                              className={`rounded-full px-3 py-1.5 text-xs transition duration-150 ${
+                                mode === travel.id
+                                  ? 'bg-brand-600 text-white'
+                                  : 'bg-white text-stone-600 ring-1 ring-stone-200 hover:bg-stone-100'
+                              }`}
+                            >
+                              {travel.label}で見る ↗
+                            </a>
+                          ))}
+                        </div>
                       </>
                     ) : (
                       <p className="text-xs leading-relaxed text-stone-500">
-                        上から出発地を選ぶと、距離と徒歩時間を出します。
+                        出発地を選ぶと、そこから園内の目的地までの距離を出します。
                       </p>
                     )}
                   </div>
 
                   <p className="mt-4 text-xs leading-relaxed text-stone-500">
+                    園内の地点の座標は
+                    <strong className="font-semibold text-stone-700">公共トイレのデータ</strong>
+                    から取っています。中央広場・冒険の森・嚮陽庭園は園内の地点名そのものなので、そのままランドマークの座標として使えます。
+                  </p>
+                  <p className="mt-3 text-xs leading-relaxed text-stone-500">
                     最寄りの
                     <strong className="font-semibold text-stone-700">
-                      西山公園駅は上の選択肢にありません
+                      西山公園駅は出発地の選択肢にありません
                     </strong>
-                    。手元のオープンデータに鉄道駅そのものの座標が無く、駅前バス停の座標で代用しているためです。西山公園駅前にはバス停がありません。
+                    。手元のオープンデータに鉄道駅そのものの座標が無いためです。鯖江市は同駅から徒歩1分と案内しています。
                   </p>
                   <p className="mt-3 text-xs leading-relaxed text-stone-500">
                     公園に直接停まるのは{PARK_ROUTES.join('・')}のみです（バス停{BUS_STOPS.length}

@@ -14,6 +14,7 @@ import {
   groupBusStops,
   primaryGenre,
   spotKey,
+  type Anchor,
   type Genre,
   type Placed,
 } from '../lib/geo';
@@ -105,6 +106,7 @@ const PIN_GLYPH = {
   station:
     '<path d="M7.5 3.5h9a2 2 0 0 1 2 2v8.5a2 2 0 0 1-2 2h-9a2 2 0 0 1-2-2V5.5a2 2 0 0 1 2-2Zm-2 4.5h13M9.5 12h.5m4.5 0h.5M8.5 16 6.5 20.5m9-4.5 2 4.5"/>',
   bus: '<path d="M5.5 5.5h13v9.5h-13V5.5Zm0 4.5h13M8 15v3m8-3v3M9 8h6"/>',
+  here: '<path d="M12 2.5v3m0 13v3M2.5 12h3m13 0h3M12 7.5a4.5 4.5 0 1 0 0 9 4.5 4.5 0 0 0 0-9Z"/>',
   toilet:
     '<path d="M12 4.5v15"/><path d="M7.5 8.5a1.6 1.6 0 1 0 0-3.2 1.6 1.6 0 0 0 0 3.2Zm0 0c-1.3 0-2 .9-2 2v4h1.2v5h1.6v-5H9.5v-4c0-1.1-.7-2-2-2Z"/><path d="M16.5 8.5a1.6 1.6 0 1 0 0-3.2 1.6 1.6 0 0 0 0 3.2Zm0 0c-1.4 0-2.1 1-2.3 2.2l-.7 4.3h1.4v4.5h3.2V15h1.4l-.7-4.3c-.2-1.2-.9-2.2-2.3-2.2Z"/>',
 } as const;
@@ -132,6 +134,31 @@ const pinIcon = (colorVar: string, glyph: GlyphId, width: number) => {
     popupAnchor: [0, -height + 6],
   });
 };
+
+/**
+ * 写真タイルの上では細い線が背景に負ける。白の縁取りを下に重ねて浮かせる。
+ * 破線は徒歩圏の目安に使っているので、選んだ線は実線にして役割を分ける。
+ */
+const casedLine = (
+  path: [number, number][],
+  { weight = 4 }: { weight?: number }
+): L.LayerGroup =>
+  L.layerGroup([
+    L.polyline(path, {
+      color: cssColor(MAP_COLOR_VAR.markerEdge),
+      weight: weight + 4,
+      opacity: 0.85,
+      lineCap: 'round',
+      lineJoin: 'round',
+    }),
+    L.polyline(path, {
+      color: cssColor(MAP_COLOR_VAR.route),
+      weight,
+      opacity: 1,
+      lineCap: 'round',
+      lineJoin: 'round',
+    }),
+  ]);
 
 const pin = (point: Placed, colorVar: string, glyph: GlyphId, width: number) =>
   L.marker([point.lat, point.lon], { icon: pinIcon(colorVar, glyph, width), title: point.name });
@@ -175,8 +202,13 @@ export interface ParkMapProps {
   readonly focus: Placed | null;
   /** 周遊ルート。公園発・公園着で結ぶ */
   readonly route: readonly Placed[];
-  /** 公園と結ぶ直線。アクセスの出発地を選んだときに引く */
-  readonly link: Placed | null;
+  /** 2地点を結ぶ直線。アクセスで出発地と目的地を選んだときに引く */
+  readonly link: { readonly from: Anchor; readonly to: Anchor } | null;
+  /** 地図で指した地点や現在地。専用のピンを出す */
+  readonly marker: Anchor | null;
+  /** 地図クリックで出発地を指定する待ち受け状態 */
+  readonly picking: boolean;
+  readonly onPick: (point: { lat: number; lon: number }) => void;
   /** パネルが地図に重なっているか。自動フィットの余白に効く */
   readonly panelOpen: boolean;
 }
@@ -185,12 +217,23 @@ export interface ParkMapProps {
 const PANEL_INSET = 456;
 const EDGE = 24;
 
-export const ParkMap = ({ active, onToggleLayer, focus, route, link, panelOpen }: ParkMapProps) => {
+export const ParkMap = ({
+  active,
+  onToggleLayer,
+  focus,
+  route,
+  link,
+  marker,
+  picking,
+  onPick,
+  panelOpen,
+}: ParkMapProps) => {
   const container = useRef<HTMLDivElement>(null);
   const layers = useRef(new Map<LayerId, L.LayerGroup>());
   const markers = useRef(new Map<string, L.Marker>());
-  const routeLine = useRef<L.Polyline | null>(null);
-  const linkLine = useRef<L.Polyline | null>(null);
+  const routeLine = useRef<L.LayerGroup | null>(null);
+  const linkLine = useRef<L.LayerGroup | null>(null);
+  const customPin = useRef<L.Marker | null>(null);
   const tiles = useRef<L.TileLayer | null>(null);
   const map = useRef<L.Map | null>(null);
   const [baseMap, setBaseMap] = useState<BaseMapId>(DEFAULT_BASE_MAP);
@@ -289,6 +332,7 @@ export const ParkMap = ({ active, onToggleLayer, focus, route, link, panelOpen }
       tiles.current = null;
       routeLine.current = null;
       linkLine.current = null;
+      customPin.current = null;
       layers.current.clear();
       markers.current.clear();
     };
@@ -344,11 +388,7 @@ export const ParkMap = ({ active, onToggleLayer, focus, route, link, panelOpen }
       ...route.map((stop) => [stop.lat, stop.lon] as [number, number]),
       [PARK.lat, PARK.lon],
     ];
-    routeLine.current = L.polyline(path, {
-      color: cssColor(MAP_COLOR_VAR.route),
-      weight: 4,
-      opacity: 0.9,
-    }).addTo(instance);
+    routeLine.current = casedLine(path, {}).addTo(instance);
     instance.fitBounds(L.latLngBounds(path), fitOptions());
   }, [route]);
 
@@ -359,18 +399,44 @@ export const ParkMap = ({ active, onToggleLayer, focus, route, link, panelOpen }
     linkLine.current = null;
     if (!link) return;
     const path: [number, number][] = [
-      [PARK.lat, PARK.lon],
-      [link.lat, link.lon],
+      [link.from.lat, link.from.lon],
+      [link.to.lat, link.to.lon],
     ];
-    linkLine.current = L.polyline(path, {
-      color: cssColor(MAP_COLOR_VAR.route),
-      weight: 5,
-      dashArray: '9 10',
-      opacity: 0.95,
-      lineCap: 'round',
-    }).addTo(instance);
+    linkLine.current = casedLine(path, { weight: 5 }).addTo(instance);
     instance.fitBounds(L.latLngBounds(path), fitOptions());
   }, [link]);
+
+  useEffect(() => {
+    const instance = map.current;
+    if (!instance) return;
+    customPin.current?.remove();
+    customPin.current = null;
+    if (!marker) return;
+    customPin.current = pin(
+      { ...marker, distanceM: 0, walkMinutes: 0 },
+      MAP_COLOR_VAR.custom,
+      'here',
+      34
+    )
+      .bindTooltip(marker.name, { direction: 'top', offset: [0, -32] })
+      .addTo(instance);
+  }, [marker]);
+
+  // 指定待ちのあいだだけクリックを拾う
+  useEffect(() => {
+    const instance = map.current;
+    if (!instance) return;
+    const container = instance.getContainer();
+    container.style.cursor = picking ? 'crosshair' : '';
+    if (!picking) return;
+    const onClick = (event: L.LeafletMouseEvent) =>
+      onPick({ lat: event.latlng.lat, lon: event.latlng.lng });
+    instance.on('click', onClick);
+    return () => {
+      instance.off('click', onClick);
+      container.style.cursor = '';
+    };
+  }, [picking, onPick]);
 
   // 高さを親のレイアウトに任せるので、サイズ変更をLeafletに伝えないとタイルが欠ける
   useEffect(() => {
@@ -451,6 +517,14 @@ export const ParkMap = ({ active, onToggleLayer, focus, route, link, panelOpen }
           </div>
         )}
       </div>
+
+      {picking && (
+        <div className="pointer-events-none absolute inset-x-0 top-3 z-800 flex justify-center px-16">
+          <p className="rounded-full bg-brand-800/90 px-4 py-2 text-xs text-white">
+            地図を押すと、その地点を出発地にします
+          </p>
+        </div>
+      )}
 
       {!tilesReady && (
         <div className="pointer-events-none absolute inset-0 z-800 flex items-center justify-center bg-stone-100">

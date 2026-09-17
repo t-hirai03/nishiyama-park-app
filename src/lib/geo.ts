@@ -6,8 +6,12 @@ export interface Point {
   readonly lon: number;
 }
 
-export interface Placed extends Point {
+/** 名前のある地点。距離が未計算のもの（現在地・地図で指した点）も含む */
+export interface Anchor extends Point {
   readonly name: string;
+}
+
+export interface Placed extends Anchor {
   readonly distanceM: number;
   readonly walkMinutes: number;
 }
@@ -99,6 +103,7 @@ export const MAP_COLOR_VAR = {
   toilet: '--color-toilet',
   ring: '--color-brand-600',
   route: '--color-brand-600',
+  custom: '--color-brand-900',
   markerEdge: '--color-marker-edge',
   markerOff: '--color-marker-off',
 } as const;
@@ -151,4 +156,31 @@ export const routeUrl = (stops: readonly Placed[]): string => {
   return `https://www.google.com/maps/dir/?api=1&origin=${origin}&destination=${origin}&waypoints=${encodeURIComponent(waypoints)}&travelmode=walking`;
 };
 
-export const spotKey = (point: Placed): string => `${point.name}@${point.lat},${point.lon}`;
+export const spotKey = (point: Anchor): string => `${point.name}@${point.lat},${point.lon}`;
+
+/**
+ * 園内の目的地。座標は公共トイレデータから取っている。
+ * 中央広場・冒険の森・嚮陽庭園などは園内の地点名そのものなので、
+ * トイレの位置がそのまま園内のランドマークの座標として使える。
+ */
+export const PARK_PLACES: readonly Anchor[] = [
+  { name: '公園の中心', lat: PARK.lat, lon: PARK.lon },
+  ...TOILETS.map((toilet) => ({ name: toilet.name, lat: toilet.lat, lon: toilet.lon })),
+];
+
+export const TRAVEL_MODES = [
+  { id: 'walking', label: '徒歩' },
+  { id: 'bicycling', label: '自転車' },
+  { id: 'transit', label: '公共交通' },
+  { id: 'driving', label: '車' },
+] as const;
+
+export type TravelMode = (typeof TRAVEL_MODES)[number]['id'];
+
+/** 2地点の経路をGoogleマップに渡す */
+export const directionsUrlBetween = (
+  from: Point,
+  to: Point,
+  mode: TravelMode = 'walking'
+): string =>
+  `https://www.google.com/maps/dir/?api=1&origin=${from.lat},${from.lon}&destination=${to.lat},${to.lon}&travelmode=${mode}`;
