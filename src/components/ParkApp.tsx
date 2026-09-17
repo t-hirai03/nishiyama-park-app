@@ -9,17 +9,14 @@ import {
   GENRE_ORDER,
   GEO_SOURCE,
   NEARBY_SPOTS,
-  PARK_PLACES,
+  PARK,
   PARK_ROUTES,
   STATIONS,
   TOILETS,
   TRAVEL_MODES,
   directionsUrlBetween,
-  groupBusStops,
-  haversineM,
   primaryGenre,
   spotKey,
-  walkMinutesOf,
   type Anchor,
   type Genre,
   type Placed,
@@ -27,10 +24,8 @@ import {
 } from '../lib/geo';
 
 export interface HighlightPhoto {
-  readonly src: string;
-  readonly width: number;
-  readonly height: number;
-  readonly medium: string;
+  readonly card: string;
+  readonly caption: string;
   readonly full: string;
   readonly fullWidth: number;
   readonly fullHeight: number;
@@ -44,17 +39,15 @@ export interface Highlight {
   readonly photos: readonly HighlightPhoto[];
 }
 
-const WALKABLE_STATIONS = STATIONS.filter((station) => station.walkMinutes <= 15);
-const PARK_BUS_STOPS = groupBusStops(BUS_STOPS.filter((stop) => stop.distanceM <= 300));
+/** 徒歩圏の駅。実測では西鯖江駅6分・鯖江駅12分の2件になる */
+const ORIGIN_STATIONS = STATIONS.filter((station) => station.walkMinutes <= 15);
 const PARK_TOILETS = TOILETS.filter((toilet) => toilet.inPark);
 const BARRIER_FREE = PARK_TOILETS.filter((toilet) => toilet.barrierFree).length;
 const LINKED_SPOTS = NEARBY_SPOTS.filter((spot) => spot.homepage).length;
-const ORIGINS: readonly Anchor[] = [...WALKABLE_STATIONS, ...PARK_BUS_STOPS];
+const ORIGINS: readonly Placed[] = ORIGIN_STATIONS;
 
-/** これを超えたら歩く距離ではないので徒歩時間を出さない */
-const FAR_M = 5_000;
-
-type OriginKind = 'preset' | 'current' | 'picked';
+/** 行き先は公園そのもの。園内のどこへ行くかまでは案内しない */
+const DESTINATION: Anchor = { name: PARK.name, lat: PARK.lat, lon: PARK.lon };
 
 type SortKey = 'name' | 'distance';
 
@@ -97,30 +90,131 @@ const Chip = ({
   </button>
 );
 
-const PanelHead = ({ title, lead }: { title: string; lead: string }) => (
+const CardAction = ({
+  label,
+  icon,
+  onClick,
+}: {
+  label: string;
+  icon: string;
+  onClick: () => void;
+}) => (
+  <button
+    type="button"
+    onClick={onClick}
+    aria-label={label}
+    title={label}
+    className="rounded-full p-2 text-stone-600 transition duration-150 hover:bg-brand-50 hover:text-brand-700"
+  >
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      className="h-5 w-5"
+    >
+      <path d={icon} />
+    </svg>
+  </button>
+);
+
+const NextStep = ({
+  label,
+  onClick,
+  floating = false,
+}: {
+  label: string;
+  onClick: () => void;
+  floating?: boolean;
+}) => (
+  <button
+    type="button"
+    onClick={onClick}
+    className={
+      floating
+        ? 'fixed bottom-20 left-1/2 z-900 flex -translate-x-1/2 lg:bottom-5 items-center gap-3 rounded-full bg-brand-600 px-6 py-3.5 text-white shadow-lg ring-1 ring-brand-700/20 transition duration-150 hover:bg-brand-700'
+        : 'mt-6 flex w-full items-center justify-between gap-3 rounded-2xl bg-brand-600 px-5 py-3.5 text-left text-white transition duration-150 hover:bg-brand-700'
+    }
+  >
+    <span className="text-sm font-bold whitespace-nowrap">{label}</span>
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      className="h-4 w-4 shrink-0"
+    >
+      <path d="M5 12h14m-6-7 7 7-7 7" />
+    </svg>
+  </button>
+);
+
+const PanelHead = ({
+  title,
+  lead,
+  onClose,
+}: {
+  title: string;
+  lead: string;
+  onClose: () => void;
+}) => (
   <>
-    <h2 className="text-base font-bold tracking-tight text-stone-900">{title}</h2>
+    <div className="flex items-start justify-between gap-3">
+      <h2 className="text-base font-bold tracking-tight text-stone-900">{title}</h2>
+      <button
+        type="button"
+        onClick={onClose}
+        aria-label="閉じて地図を見る"
+        title="閉じて地図を見る"
+        className="-mt-1.5 -mr-1.5 shrink-0 rounded-full p-2 text-stone-400 transition duration-150 hover:bg-brand-50 hover:text-stone-900"
+      >
+        <svg
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.8"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          aria-hidden="true"
+          className="h-4 w-4"
+        >
+          <path d="M6 6l12 12M18 6 6 18" />
+        </svg>
+      </button>
+    </div>
     <p className="mt-2 text-xs leading-relaxed text-stone-500">{lead}</p>
   </>
 );
 
 export const ParkApp = ({ highlights }: { highlights: readonly Highlight[] }) => {
-  const [panel, setPanel] = useState<PanelId | null>('around');
+  const [panel, setPanel] = useState<PanelId | null>('highlights');
   const [active, setActive] = useState<ReadonlySet<LayerId>>(
     () => new Set(LAYERS.map((layer) => layer.id))
   );
   const [genres, setGenres] = useState<ReadonlySet<Genre>>(() => new Set(GENRE_ORDER));
   const [sortKey, setSortKey] = useState<SortKey>('name');
   const [focus, setFocus] = useState<Placed | null>(null);
-  // 現在地と地図で指した地点はどちらも候補外の座標なので、種類を別に持つ
-  const [from, setFrom] = useState<{ kind: OriginKind; place: Anchor } | null>(null);
-  const [to, setTo] = useState<Anchor>(PARK_PLACES[0] as Anchor);
+  const [from, setFrom] = useState<Placed | null>(null);
   const [mode, setMode] = useState<TravelMode>('walking');
-  const [picking, setPicking] = useState(false);
-  const [geoError, setGeoError] = useState<string | null>(null);
-  const [locating, setLocating] = useState(false);
   const [highlightId, setHighlightId] = useState(highlights[0]?.id ?? '');
   const [viewerIndex, setViewerIndex] = useState<number | null>(null);
+  const [copied, setCopied] = useState(false);
+
+  const copyLink = () => {
+    navigator.clipboard
+      ?.writeText(window.location.href)
+      .then(() => {
+        setCopied(true);
+        window.setTimeout(() => setCopied(false), 1_600);
+      })
+      .catch(() => setCopied(false));
+  };
 
   const toggleLayer = (id: LayerId) =>
     setActive((current) => {
@@ -151,7 +245,6 @@ export const ParkApp = ({ highlights }: { highlights: readonly Highlight[] }) =>
       : [...matched].sort((a, b) => JA_COLLATOR.compare(a.name, b.name));
   }, [genres, sortKey]);
 
-  const linkM = useMemo(() => (from ? Math.round(haversineM(from.place, to)) : 0), [from, to]);
 
   const highlight = highlights.find((item) => item.id === highlightId) ?? highlights[0];
   /** 写真は大きく見せたいので、このパネルだけ地図を隠して右側を全部使う */
@@ -167,20 +260,15 @@ export const ParkApp = ({ highlights }: { highlights: readonly Highlight[] }) =>
 
       <div className="relative flex flex-1 flex-col lg:block lg:min-h-0">
         <main
-          className={`shrink-0 lg:absolute lg:inset-0 lg:h-auto ${fullWidth ? 'hidden' : 'h-[55dvh]'}`}
+          className={`shrink-0 lg:absolute lg:inset-0 lg:h-auto ${
+            fullWidth ? 'hidden' : panel ? 'h-[55dvh]' : 'h-[calc(100dvh-9rem)]'
+          }`}
         >
           <ParkMap
             active={active}
             onToggleLayer={toggleLayer}
             focus={focus}
-            link={from ? { from: from.place, to } : null}
-            marker={from && from.kind !== 'preset' ? from.place : null}
-            picking={picking}
-            onPick={(point) => {
-              setFrom({ kind: 'picked', place: { name: '地図で指した地点', ...point } });
-              setPicking(false);
-              setGeoError(null);
-            }}
+            link={from ? { from, to: DESTINATION } : null}
             panelOpen={panel !== null}
           />
         </main>
@@ -196,8 +284,8 @@ export const ParkApp = ({ highlights }: { highlights: readonly Highlight[] }) =>
             <div
               className={
                 fullWidth
-                  ? 'mx-auto w-[min(72rem,100%)] px-4 py-6 sm:px-6 sm:py-8'
-                  : 'bg-stone-50 px-4 py-5 sm:px-5 lg:pointer-events-auto lg:rounded-3xl lg:bg-white/95 lg:shadow-lg lg:ring-1 lg:ring-stone-200 lg:backdrop-blur'
+                  ? 'mx-auto w-[min(72rem,100%)] px-4 pt-6 pb-40 sm:px-6 sm:pt-8 lg:pb-24'
+                  : 'bg-stone-50 px-4 pt-5 pb-28 sm:px-5 lg:pointer-events-auto lg:rounded-3xl lg:bg-white/95 lg:pb-5 lg:shadow-lg lg:ring-1 lg:ring-stone-200 lg:backdrop-blur'
               }
             >
               {panel === 'around' && (
@@ -205,6 +293,7 @@ export const ParkApp = ({ highlights }: { highlights: readonly Highlight[] }) =>
                   <PanelHead
                     title="公園を出てから、どこへ寄れるか"
                     lead={`鯖江市の観光データから半径900m以内のスポット${NEARBY_SPOTS.length}件。名前を押すと地図が寄り、ピンのポップアップから経路や店舗情報に飛べます。名前順は、データに読みが無いため漢字の名前は読み順になりません。`}
+                    onClose={() => setPanel(null)}
                   />
 
                   <div className="mt-4 flex flex-wrap gap-1.5">
@@ -308,115 +397,52 @@ export const ParkApp = ({ highlights }: { highlights: readonly Highlight[] }) =>
                     {NEARBY_SPOTS.length}件）。収録時点のURLなので、現在は繋がらない場合があります。
                     営業時間や口コミは、ピンを押して出るGoogleマップのリンクから確認できます。
                   </p>
+                  <NextStep label="行き方を調べる" onClick={() => setPanel('access')} />
                 </>
               )}
 
               {panel === 'access' && (
                 <>
                   <PanelHead
-                    title="ここから、どれくらいか"
-                    lead="出発地と園内の目的地を選ぶと、直線距離と徒歩時間を出します。現在地や地図で指した地点も使えます。"
+                    title="西山公園へのアクセス情報"
+                    lead="駅を選ぶと、西山公園までの直線距離と徒歩時間を出します。"
+                    onClose={() => setPanel(null)}
                   />
 
-                  <p className="mt-4 text-xs font-bold text-stone-900">出発地</p>
+                  <p className="mt-4 text-xs font-bold text-stone-900">どの駅から</p>
                   <div className="mt-2 flex flex-wrap gap-1.5">
-                    <Chip
-                      on={from?.kind === 'current'}
-                      label={locating ? '取得中…' : '現在地'}
-                      onClick={() => {
-                        setPicking(false);
-                        setGeoError(null);
-                        if (!navigator.geolocation) {
-                          setGeoError('この端末では現在地を取得できません。');
-                          return;
-                        }
-                        setLocating(true);
-                        navigator.geolocation.getCurrentPosition(
-                          (position) => {
-                            setFrom({
-                              kind: 'current',
-                              place: {
-                                name: '現在地',
-                                lat: position.coords.latitude,
-                                lon: position.coords.longitude,
-                              },
-                            });
-                            setLocating(false);
-                          },
-                          () => {
-                            setGeoError('現在地を取得できませんでした。位置情報の許可を確認してください。');
-                            setLocating(false);
-                          },
-                          { timeout: 10_000 }
-                        );
-                      }}
-                    />
-                    <Chip
-                      on={picking || from?.kind === 'picked'}
-                      label={picking ? '地図を押して指定' : '地図で指す'}
-                      onClick={() => {
-                        setPicking((current) => !current);
-                        setGeoError(null);
-                      }}
-                    />
                     {ORIGINS.map((place) => (
                       <Chip
                         key={spotKey(place)}
-                        on={from?.kind === 'preset' && spotKey(from.place) === spotKey(place)}
+                        on={from !== null && spotKey(from) === spotKey(place)}
                         label={place.name}
-                        onClick={() => {
-                          setFrom({ kind: 'preset', place });
-                          setPicking(false);
-                          setGeoError(null);
-                        }}
-                      />
-                    ))}
-                  </div>
-
-                  <p className="mt-5 text-xs font-bold text-stone-900">園内のどこへ</p>
-                  <div className="mt-2 flex flex-wrap gap-1.5">
-                    {PARK_PLACES.map((place) => (
-                      <Chip
-                        key={spotKey(place)}
-                        on={spotKey(to) === spotKey(place)}
-                        label={place.name}
-                        onClick={() => setTo(place)}
+                        onClick={() => setFrom(place)}
                       />
                     ))}
                   </div>
 
                   <div className="mt-4 rounded-2xl bg-brand-50 p-4">
-                    {geoError ? (
-                      <p className="text-xs leading-relaxed text-rose-700">{geoError}</p>
-                    ) : from ? (
+                    {from ? (
                       <>
                         <p className="text-xs text-stone-500">
-                          {from.place.name} → {to.name}
+                          {from.name} → {DESTINATION.name}
                         </p>
                         <p className="mt-1.5 text-3xl font-bold tracking-tight text-stone-900 tabular-nums">
-                          {linkM >= 1000
-                            ? `${(linkM / 1000).toFixed(1)}`
-                            : linkM.toLocaleString()}
-                          <span className="ml-1 text-base font-medium text-stone-500">
-                            {linkM >= 1000 ? 'km' : 'm'}
+                          {from.distanceM.toLocaleString()}
+                          <span className="ml-1 text-base font-medium text-stone-500">m</span>
+                          <span className="ml-3 text-base font-medium text-stone-500">
+                            徒歩{from.walkMinutes}分
                           </span>
-                          {linkM <= FAR_M && (
-                            <span className="ml-3 text-base font-medium text-stone-500">
-                              徒歩{walkMinutesOf(linkM)}分
-                            </span>
-                          )}
                         </p>
                         <p className="mt-1.5 text-xs leading-relaxed text-stone-500">
-                          {linkM <= FAR_M
-                            ? '直線距離を80m=1分・切り上げで換算した目安です。実際の経路とは異なります。'
-                            : '歩く距離ではないので、徒歩時間は出していません。下から移動手段を選ぶとGoogleマップで所要時間が見られます。'}
+                          直線距離を80m=1分・切り上げで換算した目安です。実際の経路とは異なります。
                         </p>
 
                         <div className="mt-3 flex flex-wrap gap-1.5">
                           {TRAVEL_MODES.map((travel) => (
                             <a
                               key={travel.id}
-                              href={directionsUrlBetween(from.place, to, travel.id)}
+                              href={directionsUrlBetween(from, DESTINATION, travel.id)}
                               target="_blank"
                               rel="noopener noreferrer"
                               onClick={() => setMode(travel.id)}
@@ -433,17 +459,12 @@ export const ParkApp = ({ highlights }: { highlights: readonly Highlight[] }) =>
                       </>
                     ) : (
                       <p className="text-xs leading-relaxed text-stone-500">
-                        出発地を選ぶと、そこから園内の目的地までの距離を出します。
+                        駅を選ぶと、西山公園までの距離を出します。
                       </p>
                     )}
                   </div>
 
                   <p className="mt-4 text-xs leading-relaxed text-stone-500">
-                    園内の地点の座標は
-                    <strong className="font-semibold text-stone-700">公共トイレのデータ</strong>
-                    から取っています。中央広場・冒険の森・嚮陽庭園は園内の地点名そのものなので、そのままランドマークの座標として使えます。
-                  </p>
-                  <p className="mt-3 text-xs leading-relaxed text-stone-500">
                     最寄りの
                     <strong className="font-semibold text-stone-700">
                       西山公園駅は出発地の選択肢にありません
@@ -464,6 +485,7 @@ export const ParkApp = ({ highlights }: { highlights: readonly Highlight[] }) =>
                   <PanelHead
                     title="見どころ"
                     lead="見頃の時期は日別来訪者数から機械的に導いたものです。"
+                    onClose={() => setPanel(null)}
                   />
 
                   <div
@@ -523,32 +545,83 @@ export const ParkApp = ({ highlights }: { highlights: readonly Highlight[] }) =>
                     className="rounded-b-2xl bg-white p-4 shadow-sm sm:p-6"
                   >
                     <p className="text-xs leading-relaxed text-stone-500">{highlight.lead}</p>
-                    <ul
-                      className={`mt-4 grid gap-3 ${
-                        fullWidth ? 'grid-cols-2 sm:grid-cols-3 xl:grid-cols-4' : 'grid-cols-3 gap-2'
-                      }`}
-                    >
+                    <ul className="mt-4 grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-3">
                       {highlight.photos.map((photo, index) => (
-                        <li key={photo.src}>
+                        <li
+                          key={photo.card}
+                          className="overflow-hidden rounded-2xl bg-white ring-1 ring-stone-200"
+                        >
+                          <div className="flex items-center gap-2.5 px-3.5 py-3">
+                            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-brand-600">
+                              <svg
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                strokeWidth="1.8"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                aria-hidden="true"
+                                className="h-4 w-4 text-white"
+                              >
+                                <path d="M12 21v-5M7 16h10l-5-6.5L7 16Zm1.5-6h7L12 4l-3.5 6Z" />
+                              </svg>
+                            </span>
+                            <span className="min-w-0">
+                              <span className="block truncate text-sm font-bold text-stone-900">
+                                西山公園
+                              </span>
+                              <span className="block truncate text-xs text-stone-500">
+                                福井県鯖江市
+                              </span>
+                            </span>
+                          </div>
+
                           <button
                             type="button"
                             onClick={() => setViewerIndex(index)}
                             aria-label={`${highlight.title} ${index + 1}枚目を大きく見る`}
-                            className="block w-full cursor-zoom-in overflow-hidden rounded-xl ring-brand-600 transition duration-150 hover:ring-2 focus-visible:ring-2"
+                            className="group block w-full cursor-zoom-in overflow-hidden"
                           >
                             <img
-                              src={fullWidth ? photo.medium : photo.src}
-                              width={fullWidth ? 800 : photo.width}
-                              height={fullWidth ? 600 : photo.height}
+                              src={photo.card}
+                              width={800}
+                              height={800}
                               alt={`${highlight.title} ${index + 1}`}
                               loading="lazy"
-                              className="aspect-[4/3] w-full object-cover transition duration-150 hover:scale-105"
+                              className="aspect-square w-full object-cover transition duration-300 group-hover:scale-[1.03]"
                             />
                           </button>
+
+                          <div className="flex items-center gap-1 px-2.5 pt-2.5">
+                            <CardAction
+                              label="大きく見る"
+                              icon="M11 18a7 7 0 1 0 0-14 7 7 0 0 0 0 14Zm5-2 4.5 4.5M11 8v6M8 11h6"
+                              onClick={() => setViewerIndex(index)}
+                            />
+                            <CardAction
+                              label="地図で見る"
+                              icon="M12 21s7-5.4 7-11a7 7 0 1 0-14 0c0 5.6 7 11 7 11Zm0-8.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5Z"
+                              onClick={() => setPanel('around')}
+                            />
+                            <CardAction
+                              label={copied ? 'コピーしました' : 'リンクをコピー'}
+                              icon={
+                                copied
+                                  ? 'm5 13 4 4L19 7'
+                                  : 'M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.5 1.5M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.5-1.5'
+                              }
+                              onClick={copyLink}
+                            />
+                          </div>
+
+                          {photo.caption && (
+                            <p className="px-3.5 pt-2 pb-4 text-sm leading-relaxed text-stone-700">
+                              {photo.caption}
+                            </p>
+                          )}
                         </li>
                       ))}
                     </ul>
-                    <p className="mt-4 text-xs text-stone-400">写真を押すと全画面で表示します。</p>
                   </div>
                 </>
               )}
@@ -558,6 +631,7 @@ export const ParkApp = ({ highlights }: { highlights: readonly Highlight[] }) =>
                   <PanelHead
                     title="データの出典と注意点"
                     lead="この画面の数字と位置は、すべて公開されているデータから出しています。"
+                    onClose={() => setPanel(null)}
                   />
                   <p className="mt-4 text-xs leading-relaxed text-stone-500">
                     出典: 鯖江市オープンデータ（日別来訪者数・観光・公共トイレ・バス停 / CC BY 2.1） /
@@ -599,6 +673,14 @@ export const ParkApp = ({ highlights }: { highlights: readonly Highlight[] }) =>
           </div>
         )}
       </div>
+
+      {panel === 'highlights' && (
+        <NextStep
+          label="公園の近くに何があるか見る"
+          onClick={() => setPanel('around')}
+          floating
+        />
+      )}
 
       {viewerIndex !== null && highlight && (
         <PhotoViewer
