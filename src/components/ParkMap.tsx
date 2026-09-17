@@ -48,6 +48,13 @@ const PRESENT_GENRES = GENRE_ORDER.filter((genre) =>
   NEARBY_SPOTS.some((spot) => primaryGenre(spot) === genre)
 );
 
+const GENRE_GLYPH: Record<Genre, GlyphId> = {
+  観る: 'see',
+  食べる: 'eat',
+  買う: 'buy',
+  遊ぶ: 'play',
+};
+
 const LAYERS: readonly { id: LayerId; label: string; colorVar: string }[] = [
   ...PRESENT_GENRES.map((genre) => ({
     id: genre as LayerId,
@@ -84,18 +91,49 @@ const popupHtml = (point: Placed, detail: string) => `
     Googleマップで経路を見る ↗
   </a>`;
 
-const dot = (point: Placed, colorVar: string, radius: number) => {
-  const marker = L.circleMarker([point.lat, point.lon], {
-    radius,
-    color: cssColor(MAP_COLOR_VAR.markerEdge),
-    weight: 2,
-    fillColor: cssColor(colorVar),
-    fillOpacity: 0.95,
+/**
+ * ピンの中に入れるアイコン。24x24で描いて、ピンの頭に縮小して載せる。
+ * 小さく出るので線は太めにし、形の数を絞っている。
+ */
+const PIN_GLYPH = {
+  see: '<path d="M1.5 12S5.5 6 12 6s10.5 6 10.5 6-4 6-10.5 6S1.5 12 1.5 12Z"/><circle cx="12" cy="12" r="2.6" fill="currentColor" stroke="none"/>',
+  eat: '<path d="M8.5 3v18M5.5 3v5.5a3 3 0 0 0 6 0V3M16.5 21V13m0 0c-1.8 0-2.8-1.6-2.8-4.5S14.7 3 16.5 3s2.8 2.6 2.8 5.5-1 4.5-2.8 4.5Z"/>',
+  buy: '<path d="M5.5 8h13l-1.2 12.5H6.7L5.5 8Zm3.6 0V5.8a2.9 2.9 0 0 1 5.8 0V8"/>',
+  play: '<path d="M12 21v-4.5M6.5 16.5h11L12 7l-5.5 9.5Z"/>',
+  park: '<path d="M12 21v-5M7 16h10l-5-6.5L7 16Zm1.5-6h7L12 4l-3.5 6Z"/>',
+  station:
+    '<path d="M7.5 3.5h9a2 2 0 0 1 2 2v8.5a2 2 0 0 1-2 2h-9a2 2 0 0 1-2-2V5.5a2 2 0 0 1 2-2Zm-2 4.5h13M9.5 12h.5m4.5 0h.5M8.5 16 6.5 20.5m9-4.5 2 4.5"/>',
+  bus: '<path d="M5.5 5.5h13v9.5h-13V5.5Zm0 4.5h13M8 15v3m8-3v3M9 8h6"/>',
+  toilet:
+    '<path d="M12 4.5v15"/><path d="M7.5 8.5a1.6 1.6 0 1 0 0-3.2 1.6 1.6 0 0 0 0 3.2Zm0 0c-1.3 0-2 .9-2 2v4h1.2v5h1.6v-5H9.5v-4c0-1.1-.7-2-2-2Z"/><path d="M16.5 8.5a1.6 1.6 0 1 0 0-3.2 1.6 1.6 0 0 0 0 3.2Zm0 0c-1.4 0-2.1 1-2.3 2.2l-.7 4.3h1.4v4.5h3.2V15h1.4l-.7-4.3c-.2-1.2-.9-2.2-2.3-2.2Z"/>',
+} as const;
+
+type GlyphId = keyof typeof PIN_GLYPH;
+
+/** 頭の円の中心が (14,13)、先端が (14,35) の水滴形 */
+const PIN_SHAPE = 'M14 1c-6.6 0-12 5.4-12 12 0 8.6 12 22 12 22s12-13.4 12-22c0-6.6-5.4-12-12-12Z';
+
+const pinIcon = (colorVar: string, glyph: GlyphId, width: number) => {
+  const height = Math.round((width * 36) / 28);
+  const svg = `<svg viewBox="0 0 28 36" width="${width}" height="${height}" aria-hidden="true">
+      <path class="park-pin-body" d="${PIN_SHAPE}" />
+      <g transform="translate(14 13) scale(0.5) translate(-12 -12)"
+         fill="none" stroke="var(--color-marker-edge)" stroke-width="2.6"
+         stroke-linecap="round" stroke-linejoin="round" color="var(--color-marker-edge)">
+        ${PIN_GLYPH[glyph]}
+      </g>
+    </svg>`;
+  return L.divIcon({
+    className: 'park-pin-wrap',
+    html: `<span class="park-pin" style="--pin-color: var(${colorVar})">${svg}</span>`,
+    iconSize: [width, height],
+    iconAnchor: [width / 2, height],
+    popupAnchor: [0, -height + 6],
   });
-  marker.on('mouseover', () => marker.setStyle({ radius: radius + 4, weight: 3 }));
-  marker.on('mouseout', () => marker.setStyle({ radius, weight: 2 }));
-  return marker;
 };
+
+const pin = (point: Placed, colorVar: string, glyph: GlyphId, width: number) =>
+  L.marker([point.lat, point.lon], { icon: pinIcon(colorVar, glyph, width), title: point.name });
 
 const Pill = ({
   on,
@@ -113,7 +151,9 @@ const Pill = ({
     onClick={onClick}
     aria-pressed={on}
     className={`flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs whitespace-nowrap transition duration-150 ${
-      on ? 'bg-stone-900 text-white' : 'bg-stone-100 text-stone-500 hover:bg-stone-200'
+      on
+        ? 'bg-brand-600 text-white'
+        : 'bg-brand-50 text-stone-500 hover:bg-brand-100'
     }`}
   >
     {colorVar && (
@@ -169,7 +209,7 @@ export const ParkMap = () => {
     for (const genre of PRESENT_GENRES) {
       const group = groupFor(genre);
       for (const spot of NEARBY_SPOTS.filter((s) => primaryGenre(s) === genre)) {
-        dot(spot, GENRE_COLOR_VAR[genre], 7)
+        pin(spot, GENRE_COLOR_VAR[genre], GENRE_GLYPH[genre], 28)
           .bindPopup(popupHtml(spot, `${spot.category}・${spot.distanceM}m / 徒歩${spot.walkMinutes}分`))
           .addTo(group);
       }
@@ -177,19 +217,19 @@ export const ParkMap = () => {
 
     const accessGroup = groupFor('access');
     for (const station of STATIONS.filter((s) => s.walkMinutes <= 15)) {
-      dot(station, MAP_COLOR_VAR.station, 10)
+      pin(station, MAP_COLOR_VAR.station, 'station', 34)
         .bindPopup(popupHtml(station, `公園まで${station.distanceM}m / 徒歩${station.walkMinutes}分`))
         .addTo(accessGroup);
     }
     for (const stop of groupBusStops(BUS_STOPS.filter((s) => s.distanceM <= 300))) {
-      dot(stop, MAP_COLOR_VAR.busStop, 6)
+      pin(stop, MAP_COLOR_VAR.busStop, 'bus', 26)
         .bindPopup(popupHtml(stop, `バス停・${stop.routes.join('・')}／公園まで${stop.distanceM}m`))
         .addTo(accessGroup);
     }
 
     const toiletGroup = groupFor('toilet');
     for (const toilet of TOILETS) {
-      dot(toilet, MAP_COLOR_VAR.toilet, 5)
+      pin(toilet, MAP_COLOR_VAR.toilet, 'toilet', 24)
         .bindPopup(
           popupHtml(
             toilet,
@@ -199,13 +239,7 @@ export const ParkMap = () => {
         .addTo(toiletGroup);
     }
 
-    L.circleMarker([PARK.lat, PARK.lon], {
-      radius: 13,
-      color: cssColor(MAP_COLOR_VAR.markerEdge),
-      weight: 3,
-      fillColor: cssColor(MAP_COLOR_VAR.park),
-      fillOpacity: 1,
-    })
+    pin({ ...PARK, distanceM: 0, walkMinutes: 0 }, MAP_COLOR_VAR.park, 'park', 44)
       .bindPopup(popupHtml({ ...PARK, distanceM: 0, walkMinutes: 0 }, '西山公園（日本の歴史公園100選）'))
       .addTo(instance);
 
@@ -290,7 +324,7 @@ export const ParkMap = () => {
               title={control.label}
               className={`relative flex h-10 w-10 items-center justify-center rounded-xl shadow-sm ring-1 transition duration-150 ${
                 openControl === control.id
-                  ? 'bg-brand-800 text-white ring-brand-800'
+                  ? 'bg-brand-600 text-white ring-brand-600'
                   : 'bg-white/95 text-stone-600 ring-stone-200 backdrop-blur hover:text-stone-900'
               }`}
             >
@@ -353,7 +387,7 @@ export const ParkMap = () => {
 
       {active.size === 0 && (
         <div className="pointer-events-none absolute inset-x-0 bottom-20 z-800 flex justify-center">
-          <p className="rounded-full bg-stone-900/85 px-4 py-2 text-xs text-white">
+          <p className="rounded-full bg-brand-800/90 px-4 py-2 text-xs text-white">
             表示する場所が選ばれていません
           </p>
         </div>
