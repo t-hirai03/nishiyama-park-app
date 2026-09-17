@@ -55,7 +55,7 @@ const Choice = <T extends string>({
       {options.map((option) => (
         <label
           key={option.id}
-          className="cursor-pointer scroll-mt-24 rounded-full px-3.5 py-1.5 text-sm ring-1 ring-stone-200 transition duration-150 has-[:checked]:bg-emerald-700 has-[:checked]:text-white has-[:checked]:ring-emerald-700 has-[:focus-visible]:outline has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-emerald-700 hover:bg-stone-100 has-[:checked]:hover:bg-emerald-700"
+          className="cursor-pointer scroll-mt-24 rounded-full px-3.5 py-1.5 text-sm ring-1 ring-stone-200 transition duration-150 has-[:checked]:bg-brand-700 has-[:checked]:text-white has-[:checked]:ring-brand-700 has-[:focus-visible]:outline has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-brand-700 hover:bg-stone-100 has-[:checked]:hover:bg-brand-700"
         >
           <input
             type="radio"
@@ -137,7 +137,7 @@ const Facts = ({ score }: { score: DayScore }) => (
 
 const BestCard = ({ score, preferences }: { score: DayScore; preferences: Preferences }) => (
   <article className="rounded-3xl bg-white p-7 shadow-sm ring-1 ring-stone-200 sm:p-8">
-    <p className="text-xs font-medium tracking-[0.18em] text-emerald-700 uppercase">
+    <p className="text-xs font-medium tracking-[0.18em] text-brand-700 uppercase">
       Best day for you
     </p>
     <div className="mt-3 flex flex-wrap items-end justify-between gap-4">
@@ -307,7 +307,7 @@ export const VisitPlanner = () => {
             step={5}
             value={preferences.priority}
             onChange={(event) => update('priority', Number(event.target.value))}
-            className="mt-2 w-full accent-emerald-700"
+            className="mt-2 w-full accent-brand-700"
           />
           <div className="flex justify-between text-xs text-stone-500">
             <span>見頃重視</span>

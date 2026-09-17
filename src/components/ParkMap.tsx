@@ -3,9 +3,10 @@ import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import {
   BUS_STOPS,
-  GENRE_COLOR,
+  GENRE_COLOR_VAR,
   GENRE_ORDER,
-  MAP_COLOR,
+  MAP_COLOR_VAR,
+  cssColor,
   NEARBY_SPOTS,
   PARK,
   STATIONS,
@@ -44,10 +45,14 @@ const PRESENT_GENRES = GENRE_ORDER.filter((genre) =>
   NEARBY_SPOTS.some((spot) => primaryGenre(spot) === genre)
 );
 
-const LAYERS: readonly { id: LayerId; label: string; color: string }[] = [
-  ...PRESENT_GENRES.map((genre) => ({ id: genre as LayerId, label: genre, color: GENRE_COLOR[genre] })),
-  { id: 'access', label: '駅・バス停', color: MAP_COLOR.station },
-  { id: 'toilet', label: 'トイレ', color: MAP_COLOR.toilet },
+const LAYERS: readonly { id: LayerId; label: string; colorVar: string }[] = [
+  ...PRESENT_GENRES.map((genre) => ({
+    id: genre as LayerId,
+    label: genre,
+    colorVar: GENRE_COLOR_VAR[genre],
+  })),
+  { id: 'access', label: '駅・バス停', colorVar: MAP_COLOR_VAR.station },
+  { id: 'toilet', label: 'トイレ', colorVar: MAP_COLOR_VAR.toilet },
 ];
 
 const directionsUrl = (point: Placed) =>
@@ -57,16 +62,16 @@ const popupHtml = (point: Placed, detail: string) => `
   <p class="text-sm font-bold text-stone-900">${point.name}</p>
   <p class="mt-0.5 text-xs text-stone-500">${detail}</p>
   <a href="${directionsUrl(point)}" target="_blank" rel="noopener noreferrer"
-     class="mt-2 inline-block text-xs font-medium text-emerald-700 underline underline-offset-4">
+     class="mt-2 inline-block text-xs font-medium text-brand-700 underline underline-offset-4">
     Googleマップで経路を見る ↗
   </a>`;
 
-const dot = (point: Placed, color: string, radius: number) => {
+const dot = (point: Placed, colorVar: string, radius: number) => {
   const marker = L.circleMarker([point.lat, point.lon], {
     radius,
-    color: '#ffffff',
+    color: cssColor(MAP_COLOR_VAR.markerEdge),
     weight: 2,
-    fillColor: color,
+    fillColor: cssColor(colorVar),
     fillOpacity: 0.95,
   });
   marker.on('mouseover', () => marker.setStyle({ radius: radius + 4, weight: 3 }));
@@ -76,12 +81,12 @@ const dot = (point: Placed, color: string, radius: number) => {
 
 const Pill = ({
   on,
-  color,
+  colorVar,
   label,
   onClick,
 }: {
   on: boolean;
-  color?: string;
+  colorVar?: string;
   label: string;
   onClick: () => void;
 }) => (
@@ -93,10 +98,10 @@ const Pill = ({
       on ? 'bg-stone-900 text-white' : 'bg-stone-100 text-stone-500 hover:bg-stone-200'
     }`}
   >
-    {color && (
+    {colorVar && (
       <span
         className="inline-block h-2 w-2 rounded-full"
-        style={{ background: on ? color : '#d6d3d1' }}
+        style={{ background: `var(${on ? colorVar : MAP_COLOR_VAR.markerOff})` }}
       />
     )}
     {label}
@@ -123,11 +128,11 @@ export const ParkMap = () => {
     for (const { meters, label } of WALK_RINGS) {
       L.circle([PARK.lat, PARK.lon], {
         radius: meters,
-        color: MAP_COLOR.ring,
+        color: cssColor(MAP_COLOR_VAR.ring),
         weight: 3,
         opacity: 0.85,
         dashArray: '8 9',
-        fillColor: MAP_COLOR.ring,
+        fillColor: cssColor(MAP_COLOR_VAR.ring),
         fillOpacity: 0.04,
       })
         .bindTooltip(`${label}（${meters}m）`, { sticky: true })
@@ -145,7 +150,7 @@ export const ParkMap = () => {
     for (const genre of PRESENT_GENRES) {
       const group = groupFor(genre);
       for (const spot of NEARBY_SPOTS.filter((s) => primaryGenre(s) === genre)) {
-        dot(spot, GENRE_COLOR[genre], 7)
+        dot(spot, GENRE_COLOR_VAR[genre], 7)
           .bindPopup(popupHtml(spot, `${spot.category}・${spot.distanceM}m / 徒歩${spot.walkMinutes}分`))
           .addTo(group);
       }
@@ -153,19 +158,19 @@ export const ParkMap = () => {
 
     const accessGroup = groupFor('access');
     for (const station of STATIONS.filter((s) => s.walkMinutes <= 15)) {
-      dot(station, MAP_COLOR.station, 10)
+      dot(station, MAP_COLOR_VAR.station, 10)
         .bindPopup(popupHtml(station, `公園まで${station.distanceM}m / 徒歩${station.walkMinutes}分`))
         .addTo(accessGroup);
     }
     for (const stop of groupBusStops(BUS_STOPS.filter((s) => s.distanceM <= 300))) {
-      dot(stop, MAP_COLOR.busStop, 6)
+      dot(stop, MAP_COLOR_VAR.busStop, 6)
         .bindPopup(popupHtml(stop, `バス停・${stop.routes.join('・')}／公園まで${stop.distanceM}m`))
         .addTo(accessGroup);
     }
 
     const toiletGroup = groupFor('toilet');
     for (const toilet of TOILETS) {
-      dot(toilet, MAP_COLOR.toilet, 5)
+      dot(toilet, MAP_COLOR_VAR.toilet, 5)
         .bindPopup(
           popupHtml(
             toilet,
@@ -177,9 +182,9 @@ export const ParkMap = () => {
 
     L.circleMarker([PARK.lat, PARK.lon], {
       radius: 13,
-      color: '#ffffff',
+      color: cssColor(MAP_COLOR_VAR.markerEdge),
       weight: 3,
-      fillColor: MAP_COLOR.park,
+      fillColor: cssColor(MAP_COLOR_VAR.park),
       fillOpacity: 1,
     })
       .bindPopup(popupHtml({ ...PARK, distanceM: 0, walkMinutes: 0 }, '西山公園（日本の歴史公園100選）'))
@@ -280,7 +285,7 @@ export const ParkMap = () => {
               <Pill
                 key={layer.id}
                 on={active.has(layer.id)}
-                color={layer.color}
+                colorVar={layer.colorVar}
                 label={layer.label}
                 onClick={() => toggle(layer.id)}
               />

@@ -7,8 +7,8 @@ import { DEFAULT_PREFERENCES, scoreDay } from '../lib/scoring';
 
 /** 365日の実測を4段階に切って言い換える。点数は出さない */
 const CROWD_LEVELS = [
-  { upTo: 0.25, label: '空いています', tone: 'text-emerald-700' },
-  { upTo: 0.55, label: 'ゆとりがあります', tone: 'text-emerald-700' },
+  { upTo: 0.25, label: '空いています', tone: 'text-brand-700' },
+  { upTo: 0.55, label: 'ゆとりがあります', tone: 'text-brand-700' },
   { upTo: 0.85, label: 'やや多めです', tone: 'text-stone-700' },
   { upTo: 1.01, label: '混みます', tone: 'text-rose-700' },
 ] as const;
@@ -89,7 +89,7 @@ export const ParkStatus = () => {
   return (
     <Shell>
       <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-        <p className="text-xs font-medium tracking-[0.2em] text-emerald-700 uppercase">Today</p>
+        <p className="text-xs font-medium tracking-[0.2em] text-brand-700 uppercase">Today</p>
         <p className="text-sm text-stone-500">
           {formatDateLabel(outlook.date)}
           {isWeekendDate(outlook.date) && '・週末'}

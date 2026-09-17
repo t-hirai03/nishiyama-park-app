@@ -1,7 +1,35 @@
 @import "tailwindcss";
 
-@theme {
+/*
+ * 色はすべてここで定義する。TS側もCSS変数を読むので、値の複製はしない。
+ * static を付けるのは、Tailwindが未使用のテーマ変数を出力から落とすため。
+ * JSから getComputedStyle で読む変数は落とされると解決できない。
+ */
+@theme static {
   --font-sans: "Zen Kaku Gothic New", ui-sans-serif, system-ui, sans-serif;
+
+  /* 藍。福井県は県章規程で色名に「藍」を定めているが、カラーコードの公表は確認できていない */
+  --color-brand-50: #eff4f9;
+  --color-brand-100: #dbe7f1;
+  --color-brand-200: #bcd0e3;
+  --color-brand-500: #2f6ea3;
+  --color-brand-600: #245a88;
+  --color-brand-700: #1c476c;
+  --color-brand-800: #163a58;
+  --color-brand-900: #102a41;
+
+  /* 地図の色分け。ジャンル3色と交通2色は互いに被らせない */
+  --color-spot-see: #0f766e;
+  --color-spot-eat: #ea580c;
+  --color-spot-buy: #7c3aed;
+  --color-spot-play: #4d7c0f;
+  --color-transit-station: #1d4ed8;
+  --color-transit-bus: #0284c7;
+  --color-toilet: #a8a29e;
+
+  /* 地図上のマーカーの縁と、無効状態の点 */
+  --color-marker-edge: #ffffff;
+  --color-marker-off: #d6d3d1;
 }
 
 html {

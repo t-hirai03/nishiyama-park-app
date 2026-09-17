@@ -80,23 +80,29 @@ export const GENRE_ORDER = ['観る', '食べる', '買う', '遊ぶ'] as const;
 export type Genre = (typeof GENRE_ORDER)[number];
 
 /**
- * 地図の色分け。スポットのジャンルは3色、交通は青系にまとめて役割を分けている。
- * 駅とジャンル色が被ると地図上で区別できなくなるため、ここと MAP_COLOR は重複させない。
+ * 色の値は src/styles/global.css の CSS 変数だけが持つ。ここは変数名を指すだけにして、
+ * 2箇所に同じカラーコードを置かない。解決は描画時に cssColor() で行う。
  */
-export const GENRE_COLOR: Record<Genre, string> = {
-  観る: '#0f766e',
-  食べる: '#ea580c',
-  買う: '#7c3aed',
-  遊ぶ: '#4d7c0f',
+export const GENRE_COLOR_VAR: Record<Genre, string> = {
+  観る: '--color-spot-see',
+  食べる: '--color-spot-eat',
+  買う: '--color-spot-buy',
+  遊ぶ: '--color-spot-play',
 };
 
-export const MAP_COLOR = {
-  park: '#15803d',
-  station: '#1d4ed8',
-  busStop: '#0284c7',
-  toilet: '#a8a29e',
-  ring: '#047857',
+export const MAP_COLOR_VAR = {
+  park: '--color-brand-700',
+  station: '--color-transit-station',
+  busStop: '--color-transit-bus',
+  toilet: '--color-toilet',
+  ring: '--color-brand-600',
+  markerEdge: '--color-marker-edge',
+  markerOff: '--color-marker-off',
 } as const;
+
+/** CSS変数を実際の色に解決する。DOMが必要なのでクライアント側でしか呼べない */
+export const cssColor = (variable: string): string =>
+  getComputedStyle(document.documentElement).getPropertyValue(variable).trim();
 
 export const primaryGenre = (spot: Spot): Genre | undefined =>
   GENRE_ORDER.find((genre) => spot.genres.includes(genre));
