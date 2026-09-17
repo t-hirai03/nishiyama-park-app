@@ -41,9 +41,21 @@ const highlights: Highlight[] = await Promise.all(
   SOURCES.map(async (source) => {
     const window = BLOOM_WINDOWS.find((item) => item.id === source.id);
     const photos = await Promise.all(
-      source.photos.slice(0, 6).map((photo) =>
-        getImage({ src: photo, width: 320, height: 240, format: 'webp', quality: 60 })
-      )
+      source.photos.slice(0, 6).map(async (photo) => {
+        const [thumb, full] = await Promise.all([
+          getImage({ src: photo, width: 320, height: 240, format: 'webp', quality: 60 }),
+          // 縦長と横長が混在するので、拡大用は幅だけ指定して比率を保つ
+          getImage({ src: photo, width: 1200, format: 'webp', quality: 72 }),
+        ]);
+        return {
+          src: thumb.src,
+          width: 320,
+          height: 240,
+          full: full.src,
+          fullWidth: Number(full.attributes.width ?? 1200),
+          fullHeight: Number(full.attributes.height ?? 900),
+        };
+      })
     );
     return {
       id: source.id,
@@ -52,7 +64,7 @@ const highlights: Highlight[] = await Promise.all(
       window: window
         ? `${formatMonthDay(window.fromKey)}〜${formatMonthDay(window.toKey)}`
         : null,
-      photos: photos.map((photo) => ({ src: photo.src, width: 320, height: 240 })),
+      photos,
     };
   })
 );

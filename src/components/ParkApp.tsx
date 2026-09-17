@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { LAYERS, ParkMap, type LayerId } from './ParkMap';
 import { ParkPanelNav, type PanelId } from './ParkPanelNav';
+import { PhotoViewer } from './PhotoViewer';
 import {
   BUS_STOPS,
   GENRE_ORDER,
@@ -27,6 +28,9 @@ export interface HighlightPhoto {
   readonly src: string;
   readonly width: number;
   readonly height: number;
+  readonly full: string;
+  readonly fullWidth: number;
+  readonly fullHeight: number;
 }
 
 export interface Highlight {
@@ -81,6 +85,7 @@ export const ParkApp = ({ highlights }: { highlights: readonly Highlight[] }) =>
   const [stops, setStops] = useState<readonly Spot[]>([]);
   const [origin, setOrigin] = useState<Placed | null>(null);
   const [highlightId, setHighlightId] = useState(highlights[0]?.id ?? '');
+  const [viewerIndex, setViewerIndex] = useState<number | null>(null);
 
   const toggleLayer = (id: LayerId) =>
     setActive((current) => {
@@ -361,7 +366,10 @@ export const ParkApp = ({ highlights }: { highlights: readonly Highlight[] }) =>
                         key={item.id}
                         on={item.id === highlight.id}
                         label={item.title}
-                        onClick={() => setHighlightId(item.id)}
+                        onClick={() => {
+                          setHighlightId(item.id);
+                          setViewerIndex(null);
+                        }}
                       />
                     ))}
                   </div>
@@ -378,17 +386,25 @@ export const ParkApp = ({ highlights }: { highlights: readonly Highlight[] }) =>
                   <ul className="mt-3 grid grid-cols-3 gap-2">
                     {highlight.photos.map((photo, index) => (
                       <li key={photo.src}>
-                        <img
-                          src={photo.src}
-                          width={photo.width}
-                          height={photo.height}
-                          alt={`${highlight.title} ${index + 1}`}
-                          loading="lazy"
-                          className="aspect-[4/3] w-full rounded-lg object-cover"
-                        />
+                        <button
+                          type="button"
+                          onClick={() => setViewerIndex(index)}
+                          aria-label={`${highlight.title} ${index + 1}枚目を大きく見る`}
+                          className="block w-full cursor-zoom-in overflow-hidden rounded-lg ring-brand-600 transition duration-150 hover:ring-2 focus-visible:ring-2"
+                        >
+                          <img
+                            src={photo.src}
+                            width={photo.width}
+                            height={photo.height}
+                            alt={`${highlight.title} ${index + 1}`}
+                            loading="lazy"
+                            className="aspect-[4/3] w-full object-cover transition duration-150 hover:scale-105"
+                          />
+                        </button>
                       </li>
                     ))}
                   </ul>
+                  <p className="mt-2 text-xs text-stone-400">写真を押すと大きく表示します。</p>
                 </>
               )}
 
@@ -438,6 +454,16 @@ export const ParkApp = ({ highlights }: { highlights: readonly Highlight[] }) =>
           </div>
         )}
       </div>
+
+      {viewerIndex !== null && highlight && (
+        <PhotoViewer
+          photos={highlight.photos}
+          index={viewerIndex}
+          caption={highlight.title}
+          onMove={setViewerIndex}
+          onClose={() => setViewerIndex(null)}
+        />
+      )}
     </div>
   );
 };
