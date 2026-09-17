@@ -2,6 +2,12 @@ export type PanelId = 'around' | 'access' | 'highlights' | 'sources';
 
 const PANELS: readonly { id: PanelId; label: string; note: (spots: number) => string; icon: string }[] = [
   {
+    id: 'highlights',
+    label: '見どころ',
+    note: () => 'ツツジ・紅葉',
+    icon: 'M4 6h16a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1Zm2 9 3.5-4 2.5 3 2-2.5L18 15M9 10h.01',
+  },
+  {
     id: 'around',
     label: '寄り道',
     note: (spots) => `半径900m ${spots}件`,
@@ -12,12 +18,6 @@ const PANELS: readonly { id: PanelId; label: string; note: (spots: number) => st
     label: 'アクセス',
     note: () => '駅・バス停',
     icon: 'M8 4h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Zm0 4h8M9.5 12h.01m4.99 0h.01M9 16l-2 4m8-4 2 4',
-  },
-  {
-    id: 'highlights',
-    label: '見どころ',
-    note: () => 'ツツジ・紅葉',
-    icon: 'M4 6h16a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1Zm2 9 3.5-4 2.5 3 2-2.5L18 15M9 10h.01',
   },
   {
     id: 'sources',
