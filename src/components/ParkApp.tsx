@@ -18,19 +18,13 @@ import {
   groupBusStops,
   haversineM,
   primaryGenre,
-  roundTripM,
-  routeUrl,
   spotKey,
   walkMinutesOf,
   type Anchor,
   type Genre,
   type Placed,
-  type Spot,
   type TravelMode,
 } from '../lib/geo';
-
-/** Googleマップの経路URLが受け取れる中継地点の上限 */
-const MAX_STOPS = 9;
 
 export interface HighlightPhoto {
   readonly src: string;
@@ -118,7 +112,6 @@ export const ParkApp = ({ highlights }: { highlights: readonly Highlight[] }) =>
   const [genres, setGenres] = useState<ReadonlySet<Genre>>(() => new Set(GENRE_ORDER));
   const [sortKey, setSortKey] = useState<SortKey>('name');
   const [focus, setFocus] = useState<Placed | null>(null);
-  const [stops, setStops] = useState<readonly Spot[]>([]);
   // 現在地と地図で指した地点はどちらも候補外の座標なので、種類を別に持つ
   const [from, setFrom] = useState<{ kind: OriginKind; place: Anchor } | null>(null);
   const [to, setTo] = useState<Anchor>(PARK_PLACES[0] as Anchor);
@@ -158,18 +151,7 @@ export const ParkApp = ({ highlights }: { highlights: readonly Highlight[] }) =>
       : [...matched].sort((a, b) => JA_COLLATOR.compare(a.name, b.name));
   }, [genres, sortKey]);
 
-  const selectedKeys = useMemo(() => new Set(stops.map(spotKey)), [stops]);
   const linkM = useMemo(() => (from ? Math.round(haversineM(from.place, to)) : 0), [from, to]);
-  const totalM = useMemo(() => Math.round(roundTripM(stops)), [stops]);
-
-  const toggleStop = (spot: Spot) =>
-    setStops((current) =>
-      current.some((stop) => spotKey(stop) === spotKey(spot))
-        ? current.filter((stop) => spotKey(stop) !== spotKey(spot))
-        : current.length >= MAX_STOPS
-          ? current
-          : [...current, spot]
-    );
 
   const highlight = highlights.find((item) => item.id === highlightId) ?? highlights[0];
   /** 写真は大きく見せたいので、このパネルだけ地図を隠して右側を全部使う */
@@ -222,7 +204,7 @@ export const ParkApp = ({ highlights }: { highlights: readonly Highlight[] }) =>
                 <>
                   <PanelHead
                     title="公園を出てから、どこへ寄れるか"
-                    lead={`鯖江市の観光データから半径900m以内のスポット${NEARBY_SPOTS.length}件。名前を押すと地図が寄り、＋を押すと公園から回るルートに入ります。名前順は、データに読みが無いため漢字の名前は読み順になりません。`}
+                    lead={`鯖江市の観光データから半径900m以内のスポット${NEARBY_SPOTS.length}件。名前を押すと地図が寄り、ピンのポップアップから経路や店舗情報に飛べます。名前順は、データに読みが無いため漢字の名前は読み順になりません。`}
                   />
 
                   <div className="mt-4 flex flex-wrap gap-1.5">
@@ -236,67 +218,6 @@ export const ParkApp = ({ highlights }: { highlights: readonly Highlight[] }) =>
                         onClick={() => toggleGenre(genre)}
                       />
                     ))}
-                  </div>
-
-                  <div className="sticky top-0 z-10 mt-4 rounded-2xl bg-brand-50 p-4 ring-1 ring-brand-100">
-                    <p className="text-xs font-bold text-brand-800">
-                      寄り道ルート
-                      <span className="ml-2 font-normal text-stone-500">
-                        {stops.length}/{MAX_STOPS}件
-                      </span>
-                    </p>
-                    {stops.length === 0 ? (
-                      <p className="mt-2 text-xs leading-relaxed text-stone-500">
-                        行きたい場所を選ぶと、公園を出て順に回り公園へ戻るルートを作ります。
-                      </p>
-                    ) : (
-                      <>
-                        <ol className="mt-2.5 space-y-1">
-                          {stops.map((stop, index) => (
-                            <li
-                              key={spotKey(stop)}
-                              className="flex items-baseline gap-2 text-xs text-stone-700"
-                            >
-                              <span className="tabular-nums text-stone-400">{index + 1}.</span>
-                              <span className="min-w-0 flex-1 truncate">{stop.name}</span>
-                              <button
-                                type="button"
-                                onClick={() => toggleStop(stop)}
-                                className="shrink-0 text-stone-400 transition duration-150 hover:text-rose-700"
-                                aria-label={`${stop.name}をルートから外す`}
-                              >
-                                ×
-                              </button>
-                            </li>
-                          ))}
-                        </ol>
-                        <p className="mt-3 text-sm font-bold text-stone-900 tabular-nums">
-                          合計 約{(totalM / 1000).toFixed(1)}km
-                          <span className="mx-1.5 font-normal text-stone-400">/</span>
-                          徒歩{walkMinutesOf(totalM)}分
-                        </p>
-                        <p className="mt-1 text-xs text-stone-500">
-                          公園を起点に戻るまでの直線距離の合計です。実際の経路とは異なります。
-                        </p>
-                        <div className="mt-3 flex flex-wrap gap-2">
-                          <a
-                            href={routeUrl(stops)}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="rounded-full bg-brand-600 px-3.5 py-1.5 text-xs font-medium text-white transition duration-150 hover:bg-brand-700"
-                          >
-                            Googleマップで開く ↗
-                          </a>
-                          <button
-                            type="button"
-                            onClick={() => setStops([])}
-                            className="rounded-full bg-white px-3.5 py-1.5 text-xs text-stone-600 ring-1 ring-stone-200 transition duration-150 hover:bg-stone-100"
-                          >
-                            クリア
-                          </button>
-                        </div>
-                      </>
-                    )}
                   </div>
 
                   <div className="mt-5 flex flex-wrap items-center justify-between gap-2">
@@ -318,7 +239,6 @@ export const ParkApp = ({ highlights }: { highlights: readonly Highlight[] }) =>
                   </div>
                   <ul className="mt-1">
                     {visibleSpots.map((spot) => {
-                      const selected = selectedKeys.has(spotKey(spot));
                       const genre = primaryGenre(spot);
                       return (
                         <li
@@ -374,33 +294,6 @@ export const ParkApp = ({ highlights }: { highlights: readonly Highlight[] }) =>
                               </svg>
                             </a>
                           )}
-                          <button
-                            type="button"
-                            onClick={() => toggleStop(spot)}
-                            aria-pressed={selected}
-                            aria-label={
-                              selected ? `${spot.name}をルートから外す` : `${spot.name}をルートに追加`
-                            }
-                            disabled={!selected && stops.length >= MAX_STOPS}
-                            className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full transition duration-150 disabled:opacity-30 ${
-                              selected
-                                ? 'bg-brand-600 text-white'
-                                : 'bg-brand-50 text-brand-700 hover:bg-brand-100'
-                            }`}
-                          >
-                            <svg
-                              viewBox="0 0 24 24"
-                              fill="none"
-                              stroke="currentColor"
-                              strokeWidth="2.2"
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              aria-hidden="true"
-                              className="h-4 w-4"
-                            >
-                              <path d={selected ? 'm5 13 4 4L19 7' : 'M12 5v14M5 12h14'} />
-                            </svg>
-                          </button>
                         </li>
                       );
                     })}
