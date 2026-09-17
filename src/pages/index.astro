@@ -120,12 +120,118 @@ const highlights: Highlight[] = await Promise.all(
         href="https://data.city.sabae.lg.jp/"
         target="_blank"
         rel="noopener noreferrer"
-        class="shrink-0 text-xs text-stone-500 underline decoration-stone-300 underline-offset-4 transition duration-150 hover:text-stone-900"
+        class="hidden shrink-0 text-xs text-stone-500 underline decoration-stone-300 underline-offset-4 transition duration-150 hover:text-stone-900 lg:block"
       >
         出典: 鯖江市オープンデータ
       </a>
+
+      <div class="relative shrink-0 lg:hidden" data-menu>
+        <button
+          type="button"
+          data-menu-toggle
+          aria-expanded="false"
+          aria-label="メニューを開く"
+          class="flex h-9 w-9 items-center justify-center rounded-lg text-stone-600 transition duration-150 hover:bg-brand-50 hover:text-stone-900"
+        >
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.8"
+            stroke-linecap="round"
+            aria-hidden="true"
+            class="h-5 w-5"
+          >
+            <path d="M4 7h16M4 12h16M4 17h16" />
+          </svg>
+        </button>
+
+        <div
+          data-menu-panel
+          hidden
+          class="absolute top-full right-0 z-1000 mt-2 w-[min(17rem,calc(100vw-2rem))] overflow-hidden rounded-2xl bg-white shadow-lg ring-1 ring-stone-200"
+        >
+          <button
+            type="button"
+            data-menu-panel-open="sources"
+            class="flex w-full items-center gap-2.5 px-4 py-3 text-left transition duration-150 hover:bg-brand-50"
+          >
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.6"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+              class="h-5 w-5 shrink-0 text-stone-400"
+            >
+              <path
+                d="M12 4c3.9 0 7 .9 7 2s-3.1 2-7 2-7-.9-7-2 3.1-2 7-2Zm7 2v12c0 1.1-3.1 2-7 2s-7-.9-7-2V6m14 6c0 1.1-3.1 2-7 2s-7-.9-7-2"
+              />
+            </svg>
+            <span>
+              <span class="block text-sm font-bold text-stone-900">データ</span>
+              <span class="block text-xs text-stone-500">出典と注意点</span>
+            </span>
+          </button>
+
+          <div class="border-t border-stone-200 px-4 py-3">
+            <p class="text-xs text-stone-500">出典</p>
+            <a
+              href="https://data.city.sabae.lg.jp/"
+              target="_blank"
+              rel="noopener noreferrer"
+              class="mt-1.5 block text-sm text-stone-900 underline decoration-stone-300 underline-offset-4"
+            >
+              鯖江市オープンデータ
+            </a>
+            <a
+              href="https://maps.gsi.go.jp/development/ichiran.html"
+              target="_blank"
+              rel="noopener noreferrer"
+              class="mt-2 block text-sm text-stone-900 underline decoration-stone-300 underline-offset-4"
+            >
+              地理院タイル（国土地理院）
+            </a>
+          </div>
+        </div>
+      </div>
+
     </header>
 
     <ParkApp highlights={highlights} client:only="react" />
   </div>
 </Layout>
+
+<script>
+  // ヘッダーはAstroが描き、パネルの状態はReact側が持つ。両者をイベントで繋ぐ
+  const menu = document.querySelector<HTMLElement>('[data-menu]');
+  const toggle = menu?.querySelector<HTMLButtonElement>('[data-menu-toggle]');
+  const panel = menu?.querySelector<HTMLElement>('[data-menu-panel]');
+
+  if (menu && toggle && panel) {
+    const setOpen = (open: boolean) => {
+      panel.hidden = !open;
+      toggle.setAttribute('aria-expanded', String(open));
+      toggle.setAttribute('aria-label', open ? 'メニューを閉じる' : 'メニューを開く');
+    };
+
+    toggle.addEventListener('click', () => setOpen(panel.hidden));
+
+    for (const button of panel.querySelectorAll<HTMLButtonElement>('[data-menu-panel-open]')) {
+      button.addEventListener('click', () => {
+        const id = button.dataset.menuPanelOpen;
+        if (id) window.dispatchEvent(new CustomEvent('park:panel', { detail: id }));
+        setOpen(false);
+      });
+    }
+
+    document.addEventListener('pointerdown', (event) => {
+      if (!menu.contains(event.target as Node)) setOpen(false);
+    });
+    document.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape') setOpen(false);
+    });
+  }
+</script>

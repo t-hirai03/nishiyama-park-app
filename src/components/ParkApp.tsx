@@ -1,6 +1,7 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { LAYERS, ParkMap, type LayerId } from './ParkMap';
-import { ParkPanelNav, type PanelId } from './ParkPanelNav';
+import { PANEL_IDS, ParkPanelNav, type PanelId } from './ParkPanelNav';
+import { ContactForm } from './ContactForm';
 import { PhotoViewer } from './PhotoViewer';
 import { GENRE_GLYPH, SpotIcon } from './SpotIcon';
 import {
@@ -216,6 +217,16 @@ export const ParkApp = ({ highlights }: { highlights: readonly Highlight[] }) =>
       .catch(() => setCopied(false));
   };
 
+  // ヘッダーのメニューはAstro側にあるので、イベントで開く指示を受ける
+  useEffect(() => {
+    const onOpen = (event: Event) => {
+      const id = (event as CustomEvent<string>).detail;
+      if (PANEL_IDS.includes(id as PanelId)) setPanel(id as PanelId);
+    };
+    window.addEventListener('park:panel', onOpen);
+    return () => window.removeEventListener('park:panel', onOpen);
+  }, []);
+
   const toggleLayer = (id: LayerId) =>
     setActive((current) => {
       const next = new Set(current);
@@ -247,8 +258,8 @@ export const ParkApp = ({ highlights }: { highlights: readonly Highlight[] }) =>
 
 
   const highlight = highlights.find((item) => item.id === highlightId) ?? highlights[0];
-  /** 写真は大きく見せたいので、このパネルだけ地図を隠して右側を全部使う */
-  const fullWidth = panel === 'highlights';
+  /** 写真とフォームは幅が要るので、このパネルは地図を隠して右側を全部使う */
+  const fullWidth = panel === 'highlights' || panel === 'contact';
 
   return (
     <div className="flex flex-1 flex-col lg:min-h-0 lg:flex-row">
@@ -625,6 +636,8 @@ export const ParkApp = ({ highlights }: { highlights: readonly Highlight[] }) =>
                   </div>
                 </>
               )}
+
+              {panel === 'contact' && <ContactForm />}
 
               {panel === 'sources' && (
                 <>
