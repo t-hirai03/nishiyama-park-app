@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { WeatherIcon } from './WeatherIcon';
-import { WEATHER_LABEL, formatDateLabel, isWeekendDate } from '../lib/days';
+import { WEATHER_LABEL, formatShortDate, isWeekendDate } from '../lib/days';
 import { fetchForecast, outlookFor, type ForecastMap } from '../lib/forecast';
 import { yearStats } from '../lib/insights';
 import { DEFAULT_PREFERENCES, scoreDay } from '../lib/scoring';
@@ -8,8 +8,8 @@ import { DEFAULT_PREFERENCES, scoreDay } from '../lib/scoring';
 /** 365日の実測を4段階に切って言い換える。点数は出さない */
 const CROWD_LEVELS = [
   { upTo: 0.25, label: '空いています', tone: 'text-brand-700' },
-  { upTo: 0.55, label: 'ゆとりがあります', tone: 'text-brand-700' },
-  { upTo: 0.85, label: 'やや多めです', tone: 'text-stone-700' },
+  { upTo: 0.55, label: 'ゆとりあり', tone: 'text-brand-700' },
+  { upTo: 0.85, label: 'やや多め', tone: 'text-stone-700' },
   { upTo: 1.01, label: '混みます', tone: 'text-rose-700' },
 ] as const;
 
@@ -24,31 +24,17 @@ const ratioLabel = (value: number) => {
   return `約${tenths}割`;
 };
 
-const Shell = ({ children }: { children: React.ReactNode }) => (
-  <div className="rounded-3xl bg-white p-6 ring-1 ring-stone-200 sm:p-8">{children}</div>
-);
-
-const Bar = ({ className }: { className: string }) => (
-  <div className={`animate-pulse rounded bg-stone-200 ${className}`} />
-);
-
 const Skeleton = () => (
-  <Shell>
-    <Bar className="h-3 w-28" />
-    <Bar className="mt-5 h-10 w-64" />
-    <Bar className="mt-6 h-14 w-40" />
-    <div className="mt-7 grid grid-cols-2 gap-6 border-t border-stone-200 pt-6">
-      <Bar className="h-9" />
-      <Bar className="h-9" />
-    </div>
-    <p className="mt-5 text-xs text-stone-400">天気予報を読み込んでいます</p>
-  </Shell>
+  <div className="flex items-center gap-3">
+    <div className="h-5 w-5 animate-pulse rounded-full bg-stone-200" />
+    <div className="h-3.5 w-48 animate-pulse rounded bg-stone-200" />
+  </div>
 );
 
 const Figure = ({ label, value, note }: { label: string; value: string; note?: string }) => (
   <div>
     <dt className="text-xs text-stone-500">{label}</dt>
-    <dd className="mt-1 text-xl font-bold tracking-tight text-stone-900 tabular-nums">
+    <dd className="mt-1 text-lg font-bold tracking-tight text-stone-900 tabular-nums">
       {value}
       {note && <span className="ml-1 text-xs font-normal whitespace-nowrap text-stone-500">{note}</span>}
     </dd>
@@ -62,6 +48,8 @@ export const ParkStatus = () => {
   });
   const [forecast, setForecast] = useState<ForecastMap | null>(null);
   const [settled, setSettled] = useState(false);
+  const [open, setOpen] = useState(false);
+  const wrapper = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     let active = true;
@@ -77,6 +65,23 @@ export const ParkStatus = () => {
     };
   }, []);
 
+  // ヘッダーから垂れ下がる形なので、外側を触ったら閉じないと地図の操作を邪魔する
+  useEffect(() => {
+    if (!open) return;
+    const onPointerDown = (event: PointerEvent) => {
+      if (!wrapper.current?.contains(event.target as Node)) setOpen(false);
+    };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setOpen(false);
+    };
+    document.addEventListener('pointerdown', onPointerDown);
+    document.addEventListener('keydown', onKeyDown);
+    return () => {
+      document.removeEventListener('pointerdown', onPointerDown);
+      document.removeEventListener('keydown', onKeyDown);
+    };
+  }, [open]);
+
   // 平年値を先に描いてから予報で差し替えると数字が飛ぶため、確定まで骨組みを出す
   if (!settled) return <Skeleton />;
 
@@ -87,61 +92,67 @@ export const ParkStatus = () => {
   const level = crowdLevel(roomPercentile);
 
   return (
-    <Shell>
-      <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-        <p className="text-xs font-medium tracking-[0.2em] text-brand-700 uppercase">Today</p>
-        <p className="text-sm text-stone-500">
-          {formatDateLabel(outlook.date)}
-          {isWeekendDate(outlook.date) && '・週末'}
-        </p>
-      </div>
-
-      <p
-        className={`mt-3 text-3xl leading-tight font-bold tracking-tight sm:text-4xl ${level.tone}`}
+    <div ref={wrapper} className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen((current) => !current)}
+        aria-expanded={open}
+        className="flex max-w-full items-center gap-2.5 rounded-xl px-2.5 py-1.5 transition duration-150 hover:bg-stone-100"
       >
-        {level.label}
-      </p>
-
-      <div className="mt-7 flex flex-wrap items-end gap-x-8 gap-y-5">
-        <div>
-          <p className="text-xs text-stone-500">予想人出</p>
-          <p className="mt-1 text-4xl font-bold tracking-tight text-stone-900 tabular-nums sm:text-5xl">
-            <span className="mr-1 text-lg font-medium text-stone-500">約</span>
+        <WeatherIcon category={outlook.category} className="h-5 w-5 shrink-0 text-stone-400" />
+        <span className="flex min-w-0 items-baseline gap-2 whitespace-nowrap">
+          <span className="text-xs text-stone-500 tabular-nums">
+            {formatShortDate(outlook.date)}
+            {isWeekendDate(outlook.date) && '・週末'}
+          </span>
+          <span className={`text-sm font-bold ${level.tone}`}>{level.label}</span>
+          <span className="hidden text-xs text-stone-500 sm:inline">
+            {WEATHER_LABEL[outlook.category]} {outlook.tempMax}℃
+          </span>
+          <span className="text-sm font-bold text-stone-900 tabular-nums">
+            <span className="text-xs font-normal text-stone-500">約</span>
             {expectedVisitors.toLocaleString()}
-            <span className="ml-1 text-lg font-medium text-stone-500">人</span>
+            <span className="text-xs font-normal text-stone-500">人</span>
+          </span>
+        </span>
+        <svg
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.8"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          aria-hidden="true"
+          className={`h-3.5 w-3.5 shrink-0 text-stone-400 transition duration-150 ${open ? 'rotate-180' : ''}`}
+        >
+          <path d="m6 9 6 6 6-6" />
+        </svg>
+      </button>
+
+      {open && (
+        <div className="absolute top-full left-0 z-1000 mt-2 w-[min(22rem,calc(100vw-2rem))] rounded-2xl bg-white p-5 shadow-lg ring-1 ring-stone-200">
+          <dl className="grid grid-cols-2 gap-x-6 gap-y-4">
+            <Figure label="年間平均との比" value={ratioLabel(expectedVisitors / yearStats.average)} />
+            <Figure
+              label="365日中の位置"
+              value={`下から${Math.round(roomPercentile * 100)}%`}
+              note="（静かな方）"
+            />
+            <Figure label="最高/最低" value={`${outlook.tempMax}/${outlook.tempMin}`} note="℃" />
+            <Figure
+              label="年間平均"
+              value={Math.round(yearStats.average).toLocaleString()}
+              note="人（実測）"
+            />
+          </dl>
+          <p className="mt-4 border-t border-stone-200 pt-3 text-xs leading-relaxed text-stone-500">
+            {outlook.source === 'forecast'
+              ? '天気は Open-Meteo の予報。'
+              : '天気予報が取得できなかったため、月別の平年値で計算しています。'}
+            人出は令和7年度の日別実測365日を曜日と天気で補正した推計です。
           </p>
         </div>
-        <div className="flex items-center gap-3 pb-1">
-          <WeatherIcon category={outlook.category} className="h-10 w-10 text-stone-400" />
-          <div>
-            <p className="text-lg font-bold text-stone-900">{WEATHER_LABEL[outlook.category]}</p>
-            <p className="text-xs text-stone-500 tabular-nums">
-              {outlook.tempMax}℃ / {outlook.tempMin}℃
-            </p>
-          </div>
-        </div>
-      </div>
-
-      <dl className="mt-7 grid grid-cols-2 gap-x-6 gap-y-5 border-t border-stone-200 pt-6">
-        <Figure label="年間平均との比" value={ratioLabel(expectedVisitors / yearStats.average)} />
-        <Figure
-          label="365日中の位置"
-          value={`下から${Math.round(roomPercentile * 100)}%`}
-          note="（静かな方）"
-        />
-        <Figure
-          label="年間平均"
-          value={Math.round(yearStats.average).toLocaleString()}
-          note="人（実測）"
-        />
-      </dl>
-
-      <p className="mt-5 text-xs leading-relaxed text-stone-500">
-        {outlook.source === 'forecast'
-          ? '天気は Open-Meteo の予報。'
-          : '天気予報が取得できなかったため、月別の平年値で計算しています。'}
-        人出は令和7年度の日別実測365日を曜日と天気で補正した推計です。
-      </p>
-    </Shell>
+      )}
+    </div>
   );
 };

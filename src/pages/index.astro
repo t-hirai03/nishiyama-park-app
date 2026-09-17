@@ -63,12 +63,6 @@ const stationByName = (name: string) => STATIONS.find((station) => station.name 
 
 const PANELS = [
   {
-    id: 'today',
-    label: '今日',
-    note: '混雑と天気',
-    icon: 'M12 3v2m0 14v2M5.6 5.6l1.4 1.4m10 10 1.4 1.4M3 12h2m14 0h2M5.6 18.4 7 17m10-10 1.4-1.4M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z',
-  },
-  {
     id: 'around',
     label: '寄り道',
     note: `半径900m ${NEARBY_SPOTS.length}件`,
@@ -102,14 +96,19 @@ const PANELS = [
 >
   <div class="flex flex-col lg:h-dvh">
     <header
-      class="flex h-14 shrink-0 items-center justify-between gap-4 border-b border-stone-200 bg-white px-4 sm:px-6"
+      class="flex shrink-0 flex-wrap items-center justify-between gap-x-4 gap-y-1 border-b border-stone-200 bg-white px-4 py-2 sm:px-6 lg:h-14 lg:flex-nowrap lg:py-0"
     >
       <div class="flex min-w-0 items-baseline gap-2.5">
         <p class="text-sm font-bold tracking-tight text-stone-900">西山公園</p>
-        <p class="hidden truncate text-xs text-stone-500 sm:block">
+        <p class="hidden truncate text-xs text-stone-500 xl:block">
           福井県鯖江市 — 鯖江市オープンデータで見る
         </p>
       </div>
+
+      <div class="order-3 -ml-2.5 w-full min-w-0 lg:order-none lg:ml-0 lg:w-auto">
+        <ParkStatus client:load />
+      </div>
+
       <a
         href="https://data.city.sabae.lg.jp/"
         target="_blank"
@@ -171,10 +170,6 @@ const PANELS = [
             class="bg-stone-50 lg:pointer-events-auto lg:rounded-3xl lg:bg-white/95 lg:shadow-lg lg:ring-1 lg:ring-stone-200 lg:backdrop-blur"
           >
             <div class="px-4 py-5 sm:px-5">
-          <section id="today" class="scroll-mt-4">
-            <ParkStatus client:load />
-          </section>
-
           <section id="around" class="scroll-mt-4">
             <h2 class="text-base font-bold tracking-tight text-stone-900">
               公園を出てから、どこへ寄れるか
