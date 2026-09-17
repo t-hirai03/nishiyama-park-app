@@ -35,6 +35,12 @@ const BASE_MAPS = [
 
 const DEFAULT_BASE_MAP: BaseMapId = 'photo';
 
+/** Macは⌘、それ以外はCtrlでブラウザのページ拡大と衝突しない */
+const ZOOM_KEY =
+  typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform)
+    ? '⌘'
+    : 'Ctrl';
+
 
 type BaseMapId = (typeof BASE_MAPS)[number]['id'];
 
@@ -228,6 +234,7 @@ export const ParkMap = ({
   onPick,
   panelOpen,
 }: ParkMapProps) => {
+  const wrapper = useRef<HTMLDivElement>(null);
   const container = useRef<HTMLDivElement>(null);
   const layers = useRef(new Map<LayerId, L.LayerGroup>());
   const markers = useRef(new Map<string, L.Marker>());
@@ -239,6 +246,7 @@ export const ParkMap = ({
   const [baseMap, setBaseMap] = useState<BaseMapId>(DEFAULT_BASE_MAP);
   const [tilesReady, setTilesReady] = useState(false);
   const [openControl, setOpenControl] = useState<ControlId | null>(null);
+  const [showZoomHint, setShowZoomHint] = useState(false);
 
   const fitOptions = (): L.FitBoundsOptions => {
     const wide = window.matchMedia('(min-width: 1024px)').matches;
@@ -438,6 +446,38 @@ export const ParkMap = ({
     };
   }, [picking, onPick]);
 
+  /**
+   * 修飾キーを押している間だけホイールで拡大縮小する。修飾キーなしのホイールは
+   * ページのスクロールに残したいので、Leafletのハンドラを都度切り替える。
+   * 地図コンテナ自身に付けるとLeafletのリスナと発火順が登録順になってしまうため、
+   * 親要素のキャプチャ段階で拾う。トラックパッドのピンチは ctrlKey つきの
+   * wheel イベントとして来るので、これで一緒に拾える。
+   */
+  useEffect(() => {
+    const instance = map.current;
+    const node = wrapper.current;
+    if (!instance || !node) return;
+
+    let timer: number | undefined;
+    const onWheel = (event: WheelEvent) => {
+      if (event.metaKey || event.ctrlKey) {
+        instance.scrollWheelZoom.enable();
+        setShowZoomHint(false);
+        return;
+      }
+      instance.scrollWheelZoom.disable();
+      setShowZoomHint(true);
+      window.clearTimeout(timer);
+      timer = window.setTimeout(() => setShowZoomHint(false), 1_600);
+    };
+
+    node.addEventListener('wheel', onWheel, { capture: true, passive: true });
+    return () => {
+      node.removeEventListener('wheel', onWheel, { capture: true });
+      window.clearTimeout(timer);
+    };
+  }, []);
+
   // 高さを親のレイアウトに任せるので、サイズ変更をLeafletに伝えないとタイルが欠ける
   useEffect(() => {
     const node = container.current;
@@ -448,7 +488,7 @@ export const ParkMap = ({
   }, []);
 
   return (
-    <div className="relative h-full min-h-[20rem] w-full">
+    <div ref={wrapper} className="relative h-full min-h-[20rem] w-full">
       <div ref={container} className="h-full w-full" />
 
       <div className="absolute top-3 right-3 z-900 flex max-w-[calc(100%-1.5rem)] flex-col items-end gap-2">
@@ -522,6 +562,14 @@ export const ParkMap = ({
         <div className="pointer-events-none absolute inset-x-0 top-3 z-800 flex justify-center px-16">
           <p className="rounded-full bg-brand-800/90 px-4 py-2 text-xs text-white">
             地図を押すと、その地点を出発地にします
+          </p>
+        </div>
+      )}
+
+      {showZoomHint && (
+        <div className="pointer-events-none absolute inset-0 z-800 flex items-center justify-center">
+          <p className="rounded-full bg-brand-800/90 px-5 py-2.5 text-sm text-white">
+            {ZOOM_KEY} + スクロールで拡大縮小できます
           </p>
         </div>
       )}
