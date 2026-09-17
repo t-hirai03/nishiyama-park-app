@@ -16,7 +16,7 @@ const PANELS: readonly { id: PanelId; label: string; note: (spots: number) => st
   {
     id: 'access',
     label: 'アクセス',
-    note: () => '駅・バス停',
+    note: () => '駅からの距離',
     icon: 'M8 4h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Zm0 4h8M9.5 12h.01m4.99 0h.01M9 16l-2 4m8-4 2 4',
   },
   {
@@ -38,7 +38,7 @@ export const ParkPanelNav = ({
 }) => (
   <nav
     aria-label="表示する情報"
-    className="flex shrink-0 gap-1 overflow-x-auto border-b border-stone-200 bg-white p-2 lg:w-52 lg:flex-col lg:gap-0.5 lg:overflow-x-visible lg:border-r lg:border-b-0 lg:p-3"
+    className="fixed inset-x-0 bottom-0 z-1000 flex border-t border-stone-200 bg-white/95 pb-[env(safe-area-inset-bottom)] backdrop-blur lg:static lg:z-auto lg:w-52 lg:shrink-0 lg:flex-col lg:gap-0.5 lg:border-t-0 lg:border-r lg:bg-white lg:p-3 lg:pb-3 lg:backdrop-blur-none"
   >
     {PANELS.map((panel) => {
       const on = current === panel.id;
@@ -48,25 +48,29 @@ export const ParkPanelNav = ({
           type="button"
           onClick={() => onSelect(panel.id)}
           aria-current={on}
-          className={`flex shrink-0 items-center gap-2.5 rounded-xl px-3 py-2 text-left transition duration-150 lg:w-full ${
-            on ? 'bg-brand-600' : 'hover:bg-brand-50'
+          className={`flex flex-1 flex-col items-center gap-1 py-2.5 transition duration-150 lg:w-full lg:flex-none lg:flex-row lg:items-center lg:gap-2.5 lg:rounded-xl lg:px-3 lg:py-2 lg:text-left ${
+            on ? 'lg:bg-brand-600' : 'lg:hover:bg-brand-50'
           }`}
         >
           <svg
             viewBox="0 0 24 24"
             fill="none"
             stroke="currentColor"
-            strokeWidth="1.6"
+            strokeWidth={on ? 2.2 : 1.6}
             strokeLinecap="round"
             strokeLinejoin="round"
             aria-hidden="true"
-            className={`h-5 w-5 shrink-0 ${on ? 'text-white' : 'text-stone-400'}`}
+            className={`h-6 w-6 shrink-0 lg:h-5 lg:w-5 lg:stroke-[1.6] ${
+              on ? 'text-brand-600 lg:text-white' : 'text-stone-400'
+            }`}
           >
             <path d={panel.icon} />
           </svg>
           <span className="min-w-0">
             <span
-              className={`block text-sm font-bold whitespace-nowrap ${on ? 'text-white' : 'text-stone-900'}`}
+              className={`block text-[0.6875rem] font-bold whitespace-nowrap lg:text-sm ${
+                on ? 'text-brand-700 lg:text-white' : 'text-stone-500 lg:text-stone-900'
+              }`}
             >
               {panel.label}
             </span>

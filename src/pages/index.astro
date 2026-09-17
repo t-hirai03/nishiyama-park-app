@@ -13,6 +13,32 @@ const loadImages = (records: Record<string, { default: ImageMetadata }>) =>
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([, module]) => module.default);
 
+/**
+ * カードのキャプション。写真ごとの説明データは存在しないため、
+ * 「その写真の説明」ではなく園の事実を1枚ずつ違う内容で載せる。
+ * 株数と植栽場所は tsutsuji.json、人出と見頃は日別来訪者数365日から。
+ */
+const CAPTIONS: Record<string, readonly string[]> = {
+  tsutsuji: [
+    'ヒラドツツジは31,400株。園内11種50,025株のうち6割強を占め、公園全体に植わっています。',
+    'ドウダンツツジ5,600株は嚮陽庭園と嚮陽会館駐車場に。春に白い花をつけた同じ木が、秋には紅葉します。',
+    'サツキ4,000株は西山橋下の緑化ブロックに植えられています。',
+    'オオムラサキ3,000株はパンダらんど駐車場ほかに。ヒラドツツジより濃い紫が混じります。',
+    'キリシマ2,390株は結びの広場と、ピクニック広場南側の階段沿いに。',
+    'レンゲツツジ1,690株とクルメツツジ1,420株はピクニック広場にまとまっています。',
+    'ミツバツツジ150株、リュウキュウツツジ250株、ミナヤマツツジ100株はパンダらんどに。11種あわせて50,025株です。',
+  ],
+  kouyou: [
+    '見頃は11/15〜11/28。日別来訪者数365日から、曜日と天気の影響を取り除いて機械的に導いたウィンドウです。',
+    '人出のピークは11/16の1,310人。ツツジの5/5は4,550人なので、3分の1以下で見られます。',
+    '秋の人出の中央値は300人。春の450人より静かです。',
+    '嚮陽庭園のドウダンツツジ5,600株は、春に白い花をつけた同じ木が秋に色づきます。',
+    '15〜25℃で晴れか曇りの日は、秋は91日中30日。春の39日に次ぐ多さです。',
+    '併設の西山動物園は入園無料。レッサーパンダに会えます。',
+    '西山公園は「日本の歴史公園100選」に選ばれています。',
+  ],
+};
+
 const SOURCES = [
   {
     id: 'tsutsuji',
@@ -40,19 +66,18 @@ const SOURCES = [
 const highlights: Highlight[] = await Promise.all(
   SOURCES.map(async (source) => {
     const window = BLOOM_WINDOWS.find((item) => item.id === source.id);
+    const captions = CAPTIONS[source.id] ?? [];
     const photos = await Promise.all(
-      source.photos.map(async (photo) => {
-        const [thumb, medium, full] = await Promise.all([
-          getImage({ src: photo, width: 320, height: 240, format: 'webp', quality: 60 }),
-          getImage({ src: photo, width: 800, height: 600, format: 'webp', quality: 68 }),
-          // 縦長と横長が混在するので、拡大用は幅だけ指定して比率を保つ
+      source.photos.map(async (photo, index) => {
+        const [card, full] = await Promise.all([
+          // カードは正方形に切る。縦長と横長が混在しても並びが揃う
+          getImage({ src: photo, width: 800, height: 800, format: 'webp', quality: 68 }),
+          // 拡大用は幅だけ指定して比率を保つ
           getImage({ src: photo, width: 1200, format: 'webp', quality: 72 }),
         ]);
         return {
-          src: thumb.src,
-          width: 320,
-          height: 240,
-          medium: medium.src,
+          card: card.src,
+          caption: captions[index] ?? '',
           full: full.src,
           fullWidth: Number(full.attributes.width ?? 1200),
           fullHeight: Number(full.attributes.height ?? 900),
