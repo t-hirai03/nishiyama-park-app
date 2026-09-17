@@ -4,8 +4,8 @@ import 'leaflet/dist/leaflet.css';
 import {
   BUS_STOPS,
   GENRE_COLOR,
-  MAP_COLOR,
   GENRE_ORDER,
+  MAP_COLOR,
   NEARBY_SPOTS,
   PARK,
   STATIONS,
@@ -16,9 +16,22 @@ import {
   type Placed,
 } from '../lib/geo';
 
-const GSI_TILE = 'https://cyberjapandata.gsi.go.jp/xyz/pale/{z}/{x}/{y}.png';
 const GSI_ATTRIBUTION =
   '<a href="https://maps.gsi.go.jp/development/ichiran.html" target="_blank" rel="noopener noreferrer">地理院タイル</a>（国土地理院）';
+
+/**
+ * 地理院タイルは種類ごとに提供ズームが違う。白地図はZL14、Englishは11、
+ * 陰影起伏図は12までで園内を見る倍率に足りないため、この3種に絞っている。
+ * 写真はZL14からなので、切り替え時に倍率を引き上げる必要がある。
+ */
+const BASE_MAPS = [
+  { id: 'pale', label: '淡色', url: 'pale/{z}/{x}/{y}.png', minZoom: 5, maxNativeZoom: 18 },
+  { id: 'std', label: '標準', url: 'std/{z}/{x}/{y}.png', minZoom: 5, maxNativeZoom: 18 },
+  { id: 'photo', label: '写真', url: 'seamlessphoto/{z}/{x}/{y}.jpg', minZoom: 14, maxNativeZoom: 18 },
+] as const;
+
+type BaseMapId = (typeof BASE_MAPS)[number]['id'];
+
 const WALK_RINGS = [
   { meters: 400, label: '徒歩5分' },
   { meters: 800, label: '徒歩10分' },
@@ -27,7 +40,6 @@ const OUTER_RING_M = 800;
 
 type LayerId = Genre | 'access' | 'toilet';
 
-/** 該当スポットが0件のジャンルはボタンを出さない */
 const PRESENT_GENRES = GENRE_ORDER.filter((genre) =>
   NEARBY_SPOTS.some((spot) => primaryGenre(spot) === genre)
 );
@@ -62,25 +74,51 @@ const dot = (point: Placed, color: string, radius: number) => {
   return marker;
 };
 
+const Pill = ({
+  on,
+  color,
+  label,
+  onClick,
+}: {
+  on: boolean;
+  color?: string;
+  label: string;
+  onClick: () => void;
+}) => (
+  <button
+    type="button"
+    onClick={onClick}
+    aria-pressed={on}
+    className={`flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs whitespace-nowrap transition duration-150 ${
+      on ? 'bg-stone-900 text-white' : 'bg-stone-100 text-stone-500 hover:bg-stone-200'
+    }`}
+  >
+    {color && (
+      <span
+        className="inline-block h-2 w-2 rounded-full"
+        style={{ background: on ? color : '#d6d3d1' }}
+      />
+    )}
+    {label}
+  </button>
+);
+
 export const ParkMap = () => {
   const container = useRef<HTMLDivElement>(null);
   const layers = useRef(new Map<LayerId, L.LayerGroup>());
+  const tiles = useRef<L.TileLayer | null>(null);
   const map = useRef<L.Map | null>(null);
   const [active, setActive] = useState<Set<LayerId>>(
     () => new Set(LAYERS.map((layer) => layer.id))
   );
+  const [baseMap, setBaseMap] = useState<BaseMapId>('pale');
   const [tilesReady, setTilesReady] = useState(false);
 
   useEffect(() => {
     if (!container.current || map.current) return;
 
-    const instance = L.map(container.current, { scrollWheelZoom: false });
-    const tiles = L.tileLayer(GSI_TILE, {
-      attribution: GSI_ATTRIBUTION,
-      maxZoom: 18,
-      minZoom: 5,
-    }).addTo(instance);
-    tiles.on('load', () => setTilesReady(true));
+    const instance = L.map(container.current, { scrollWheelZoom: false, zoomControl: false });
+    L.control.zoom({ position: 'bottomright' }).addTo(instance);
 
     for (const { meters, label } of WALK_RINGS) {
       L.circle([PARK.lat, PARK.lon], {
@@ -91,7 +129,6 @@ export const ParkMap = () => {
         dashArray: '8 9',
         fillColor: MAP_COLOR.ring,
         fillOpacity: 0.04,
-        interactive: true,
       })
         .bindTooltip(`${label}（${meters}m）`, { sticky: true })
         .addTo(instance);
@@ -148,7 +185,6 @@ export const ParkMap = () => {
       .bindPopup(popupHtml({ ...PARK, distanceM: 0, walkMinutes: 0 }, '西山公園（日本の歴史公園100選）'))
       .addTo(instance);
 
-    // 徒歩10分の円が切れると目安として読めないので、円の外接矩形も収める。
     // L.Circle#getBounds は地図に追加済みでないと使えないため latLng#toBounds を使う
     const bounds = L.latLngBounds([
       ...NEARBY_SPOTS.map((spot) => [spot.lat, spot.lon] as [number, number]),
@@ -160,9 +196,33 @@ export const ParkMap = () => {
     return () => {
       instance.remove();
       map.current = null;
+      tiles.current = null;
       layers.current.clear();
     };
   }, []);
+
+  useEffect(() => {
+    const instance = map.current;
+    if (!instance) return;
+    const preset = BASE_MAPS.find((item) => item.id === baseMap) ?? BASE_MAPS[0];
+
+    setTilesReady(false);
+    tiles.current?.remove();
+    const layer = L.tileLayer(`https://cyberjapandata.gsi.go.jp/xyz/${preset.url}`, {
+      attribution: GSI_ATTRIBUTION,
+      minZoom: preset.minZoom,
+      maxNativeZoom: preset.maxNativeZoom,
+      maxZoom: 18,
+    });
+    layer.on('load', () => setTilesReady(true));
+    layer.addTo(instance);
+    layer.bringToBack();
+    tiles.current = layer;
+
+    // 提供ズームを下回ると真っ白になるので倍率を引き上げる
+    if (instance.getZoom() < preset.minZoom) instance.setZoom(preset.minZoom);
+    instance.setMinZoom(preset.minZoom);
+  }, [baseMap]);
 
   useEffect(() => {
     const instance = map.current;
@@ -191,53 +251,57 @@ export const ParkMap = () => {
     });
 
   return (
-    <div className="relative h-full min-h-[22rem] w-full">
+    <div className="relative h-full min-h-[20rem] w-full">
       <div ref={container} className="h-full w-full" />
 
-      <div className="pointer-events-none absolute inset-x-0 top-0 z-500 p-3 sm:p-4">
-        <div className="pointer-events-auto ml-auto w-fit max-w-[calc(100%-4rem)] rounded-2xl bg-white/95 p-2.5 shadow-sm ring-1 ring-stone-200 backdrop-blur">
+      <div className="absolute top-3 right-3 z-900 flex max-w-[calc(100%-1.5rem)] flex-col items-end gap-2">
+        <div className="rounded-2xl bg-white/95 p-2.5 shadow-sm ring-1 ring-stone-200 backdrop-blur">
+          <p className="mb-1.5 hidden text-right text-[0.6875rem] tracking-wide text-stone-400 sm:block">
+            地図の種類
+          </p>
+          <div className="flex justify-end gap-1.5">
+            {BASE_MAPS.map((preset) => (
+              <Pill
+                key={preset.id}
+                on={baseMap === preset.id}
+                label={preset.label}
+                onClick={() => setBaseMap(preset.id)}
+              />
+            ))}
+          </div>
+        </div>
+
+        <div className="rounded-2xl bg-white/95 p-2.5 shadow-sm ring-1 ring-stone-200 backdrop-blur">
+          <p className="mb-1.5 hidden text-right text-[0.6875rem] tracking-wide text-stone-400 sm:block">
+            表示する場所
+          </p>
           <div className="flex flex-wrap justify-end gap-1.5">
-            {LAYERS.map((layer) => {
-              const on = active.has(layer.id);
-              return (
-                <button
-                  key={layer.id}
-                  type="button"
-                  onClick={() => toggle(layer.id)}
-                  aria-pressed={on}
-                  className={`flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs transition duration-150 ${
-                    on ? 'bg-stone-900 text-white' : 'bg-stone-100 text-stone-500 hover:bg-stone-200'
-                  }`}
-                >
-                  <span
-                    className="inline-block h-2 w-2 rounded-full"
-                    style={{ background: on ? layer.color : '#d6d3d1' }}
-                  />
-                  {layer.label}
-                </button>
-              );
-            })}
+            {LAYERS.map((layer) => (
+              <Pill
+                key={layer.id}
+                on={active.has(layer.id)}
+                color={layer.color}
+                label={layer.label}
+                onClick={() => toggle(layer.id)}
+              />
+            ))}
           </div>
         </div>
       </div>
 
       {!tilesReady && (
-        <div className="pointer-events-none absolute inset-0 z-500 flex items-center justify-center bg-stone-100">
+        <div className="pointer-events-none absolute inset-0 z-800 flex items-center justify-center bg-stone-100">
           <p className="animate-pulse text-sm text-stone-400">地図を読み込んでいます</p>
         </div>
       )}
 
       {active.size === 0 && (
-        <div className="pointer-events-none absolute inset-x-0 bottom-12 z-500 flex justify-center">
+        <div className="pointer-events-none absolute inset-x-0 bottom-20 z-800 flex justify-center">
           <p className="rounded-full bg-stone-900/85 px-4 py-2 text-xs text-white">
-            表示する種類が選ばれていません
+            表示する場所が選ばれていません
           </p>
         </div>
       )}
-
-      <p className="pointer-events-none absolute bottom-2 left-2 z-500 max-w-[22rem] rounded-xl bg-white/90 px-3 py-2 text-xs leading-relaxed text-stone-500 backdrop-blur">
-        ピンを押すと名称と距離が出ます。破線は公園からの直線距離で徒歩5分（400m）と徒歩10分（800m）の目安。
-      </p>
     </div>
   );
 };

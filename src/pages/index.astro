@@ -62,11 +62,37 @@ const linkedCount = NEARBY_SPOTS.filter((spot) => spot.homepage).length;
 const stationByName = (name: string) => STATIONS.find((station) => station.name === name);
 
 const PANELS = [
-  { id: 'today', label: '今日' },
-  { id: 'around', label: '寄り道' },
-  { id: 'access', label: 'アクセス' },
-  { id: 'highlights', label: '見どころ' },
-];
+  {
+    id: 'today',
+    label: '今日',
+    note: '混雑と天気',
+    icon: 'M12 3v2m0 14v2M5.6 5.6l1.4 1.4m10 10 1.4 1.4M3 12h2m14 0h2M5.6 18.4 7 17m10-10 1.4-1.4M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z',
+  },
+  {
+    id: 'around',
+    label: '寄り道',
+    note: `半径900m ${NEARBY_SPOTS.length}件`,
+    icon: 'M12 21s7-5.4 7-11a7 7 0 1 0-14 0c0 5.6 7 11 7 11Zm0-8.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5Z',
+  },
+  {
+    id: 'access',
+    label: 'アクセス',
+    note: '駅・バス停',
+    icon: 'M8 4h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Zm0 4h8M9.5 12h.01m4.99 0h.01M9 16l-2 4m8-4 2 4',
+  },
+  {
+    id: 'highlights',
+    label: '見どころ',
+    note: 'ツツジ・紅葉',
+    icon: 'M4 6h16a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1Zm2 9 3.5-4 2.5 3 2-2.5L18 15M9 10h.01',
+  },
+  {
+    id: 'sources',
+    label: 'データ',
+    note: '出典と注意点',
+    icon: 'M12 4c3.9 0 7 .9 7 2s-3.1 2-7 2-7-.9-7-2 3.1-2 7-2Zm7 2v12c0 1.1-3.1 2-7 2s-7-.9-7-2V6m14 6c0 1.1-3.1 2-7 2s-7-.9-7-2',
+  },
+] as const;
 
 ---
 
@@ -94,33 +120,62 @@ const PANELS = [
       </a>
     </header>
 
-    <div class="flex flex-col-reverse lg:min-h-0 lg:flex-1 lg:flex-row">
-      <aside
-        id="panel"
-        class="flex w-full shrink-0 flex-col border-stone-200 bg-stone-50 lg:w-[27rem] lg:border-r"
+    <div class="flex flex-1 flex-col lg:min-h-0 lg:flex-row">
+      <nav
+        data-nav
+        aria-label="表示する情報"
+        class="flex shrink-0 gap-1 overflow-x-auto border-b border-stone-200 bg-white p-2 lg:w-52 lg:flex-col lg:gap-0.5 lg:overflow-x-visible lg:border-r lg:border-b-0 lg:p-3"
       >
-        <nav
-          class="flex shrink-0 gap-1 overflow-x-auto border-b border-stone-200 bg-white px-3 py-2"
-          aria-label="パネル内のセクション"
-        >
-          {
-            PANELS.map((panel) => (
-              <a
-                href={`#${panel.id}`}
-                class="shrink-0 rounded-full px-3 py-1.5 text-xs text-stone-600 transition duration-150 hover:bg-stone-100 hover:text-stone-900"
+        {
+          PANELS.map((panel) => (
+            <button
+              type="button"
+              data-panel={panel.id}
+              class="group flex shrink-0 items-center gap-2.5 rounded-xl px-3 py-2 text-left transition duration-150 hover:bg-stone-100 aria-[current=true]:bg-stone-900 lg:w-full"
+            >
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.6"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                aria-hidden="true"
+                class="h-5 w-5 shrink-0 text-stone-400 group-aria-[current=true]:text-white"
               >
-                {panel.label}
-              </a>
-            ))
-          }
-        </nav>
+                <path d={panel.icon} />
+              </svg>
+              <span class="min-w-0">
+                <span class="block text-sm font-bold whitespace-nowrap text-stone-900 group-aria-[current=true]:text-white">
+                  {panel.label}
+                </span>
+                <span class="hidden truncate text-xs text-stone-400 group-aria-[current=true]:text-stone-300 lg:block">
+                  {panel.note}
+                </span>
+              </span>
+            </button>
+          ))
+        }
+      </nav>
 
-        <div class="px-4 py-5 sm:px-5 lg:min-h-0 lg:flex-1 lg:overflow-y-auto lg:overscroll-contain">
+      <div class="relative flex flex-1 flex-col lg:block lg:min-h-0">
+        <main class="h-[55dvh] shrink-0 lg:absolute lg:inset-0 lg:h-auto">
+          <ParkMap client:only="react" />
+        </main>
+
+        <div
+          data-panels
+          class="lg:pointer-events-none lg:absolute lg:inset-y-0 lg:left-0 lg:z-900 lg:w-[27rem] lg:max-w-[calc(100%-1.5rem)] lg:overflow-y-auto lg:overscroll-contain lg:p-4"
+        >
+          <div
+            class="bg-stone-50 lg:pointer-events-auto lg:rounded-3xl lg:bg-white/95 lg:shadow-lg lg:ring-1 lg:ring-stone-200 lg:backdrop-blur"
+          >
+            <div class="px-4 py-5 sm:px-5">
           <section id="today" class="scroll-mt-4">
             <ParkStatus client:load />
           </section>
 
-          <section id="around" class="mt-9 scroll-mt-4">
+          <section id="around" class="scroll-mt-4">
             <h2 class="text-base font-bold tracking-tight text-stone-900">
               公園を出てから、どこへ寄れるか
             </h2>
@@ -185,7 +240,7 @@ const PANELS = [
             </div>
           </section>
 
-          <section id="access" class="mt-9 scroll-mt-4">
+          <section id="access" class="scroll-mt-4">
             <h2 class="text-base font-bold tracking-tight text-stone-900">車がなくても、駅から歩ける</h2>
             <p class="mt-2 text-xs leading-relaxed text-stone-500">
               鯖江市は福井鉄道西山公園駅から徒歩1分、JR鯖江駅から直線距離で約1.2km・徒歩約15分と
@@ -257,7 +312,7 @@ const PANELS = [
             </div>
           </section>
 
-          <section id="highlights" class="mt-9 scroll-mt-4">
+          <section id="highlights" class="scroll-mt-4">
             <h2 class="text-base font-bold tracking-tight text-stone-900">見どころ</h2>
             <div class="mt-4 space-y-7">
               {
@@ -298,8 +353,9 @@ const PANELS = [
             </div>
           </section>
 
-          <footer class="mt-9 border-t border-stone-200 pt-5 pb-2">
-            <p class="text-xs leading-relaxed text-stone-400">
+          <section id="sources" class="scroll-mt-4">
+            <h2 class="text-base font-bold tracking-tight text-stone-900">データの出典と注意点</h2>
+            <p class="mt-4 text-xs leading-relaxed text-stone-400">
               オープンデータ活用アプリコンテスト2026 応募作品（主催: 鯖江市 / 企画運営: NPO法人エル・コミュニティ）
             </p>
             <p class="mt-2 text-xs leading-relaxed text-stone-400">
@@ -317,13 +373,36 @@ const PANELS = [
               予想人出は過去実績にもとづく推計値、距離は公開座標からの直線距離です。
               実際の混雑や徒歩時間を保証するものではありません。
             </p>
-          </footer>
+          </section>
+            </div>
+          </div>
         </div>
-      </aside>
-
-      <main class="h-[60dvh] shrink-0 lg:h-auto lg:min-h-0 lg:flex-1 lg:shrink">
-        <ParkMap client:only="react" />
-      </main>
+      </div>
     </div>
   </div>
 </Layout>
+
+<script>
+  const nav = document.querySelector<HTMLElement>('[data-nav]');
+  const panels = document.querySelectorAll<HTMLElement>('[data-panels] section[id]');
+  const buttons = nav?.querySelectorAll<HTMLButtonElement>('[data-panel]');
+  if (nav && buttons) {
+    const show = (id: string) => {
+      for (const panel of panels) panel.hidden = panel.id !== id;
+      for (const button of buttons) {
+        button.setAttribute('aria-current', String(button.dataset.panel === id));
+      }
+    };
+    const current = () =>
+      [...buttons].find((button) => button.getAttribute('aria-current') === 'true')?.dataset.panel;
+    for (const button of buttons) {
+      button.addEventListener('click', () => {
+        const id = button.dataset.panel;
+        if (!id) return;
+        // 同じ項目をもう一度押したら閉じて、地図を遮らない状態にする
+        show(current() === id ? '' : id);
+      });
+    }
+    show(buttons[0]?.dataset.panel ?? '');
+  }
+</script>
