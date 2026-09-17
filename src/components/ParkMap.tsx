@@ -26,10 +26,13 @@ const GSI_ATTRIBUTION =
  * 写真はZL14からなので、切り替え時に倍率を引き上げる必要がある。
  */
 const BASE_MAPS = [
+  { id: 'photo', label: '写真', url: 'seamlessphoto/{z}/{x}/{y}.jpg', minZoom: 14, maxNativeZoom: 18 },
   { id: 'pale', label: '淡色', url: 'pale/{z}/{x}/{y}.png', minZoom: 5, maxNativeZoom: 18 },
   { id: 'std', label: '標準', url: 'std/{z}/{x}/{y}.png', minZoom: 5, maxNativeZoom: 18 },
-  { id: 'photo', label: '写真', url: 'seamlessphoto/{z}/{x}/{y}.jpg', minZoom: 14, maxNativeZoom: 18 },
 ] as const;
+
+const DEFAULT_BASE_MAP: BaseMapId = 'photo';
+
 
 type BaseMapId = (typeof BASE_MAPS)[number]['id'];
 
@@ -53,6 +56,21 @@ const LAYERS: readonly { id: LayerId; label: string; colorVar: string }[] = [
   })),
   { id: 'access', label: '駅・バス停', colorVar: MAP_COLOR_VAR.station },
   { id: 'toilet', label: 'トイレ', colorVar: MAP_COLOR_VAR.toilet },
+];
+
+type ControlId = 'base' | 'layers';
+
+const CONTROLS: readonly { id: ControlId; label: string; icon: string }[] = [
+  {
+    id: 'base',
+    label: '地図の種類',
+    icon: 'm12 3 9 4.5-9 4.5-9-4.5L12 3Zm9 9-9 4.5L3 12m18 4.5-9 4.5-9-4.5',
+  },
+  {
+    id: 'layers',
+    label: '表示する場所',
+    icon: 'M12 21s7-5.4 7-11a7 7 0 1 0-14 0c0 5.6 7 11 7 11Zm0-8.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5Z',
+  },
 ];
 
 const directionsUrl = (point: Placed) =>
@@ -116,8 +134,9 @@ export const ParkMap = () => {
   const [active, setActive] = useState<Set<LayerId>>(
     () => new Set(LAYERS.map((layer) => layer.id))
   );
-  const [baseMap, setBaseMap] = useState<BaseMapId>('pale');
+  const [baseMap, setBaseMap] = useState<BaseMapId>(DEFAULT_BASE_MAP);
   const [tilesReady, setTilesReady] = useState(false);
+  const [openControl, setOpenControl] = useState<ControlId | null>(null);
 
   useEffect(() => {
     if (!container.current || map.current) return;
@@ -260,38 +279,70 @@ export const ParkMap = () => {
       <div ref={container} className="h-full w-full" />
 
       <div className="absolute top-3 right-3 z-900 flex max-w-[calc(100%-1.5rem)] flex-col items-end gap-2">
-        <div className="rounded-2xl bg-white/95 p-2.5 shadow-sm ring-1 ring-stone-200 backdrop-blur">
-          <p className="mb-1.5 hidden text-right text-[0.6875rem] tracking-wide text-stone-400 sm:block">
-            地図の種類
-          </p>
-          <div className="flex justify-end gap-1.5">
-            {BASE_MAPS.map((preset) => (
-              <Pill
-                key={preset.id}
-                on={baseMap === preset.id}
-                label={preset.label}
-                onClick={() => setBaseMap(preset.id)}
-              />
-            ))}
-          </div>
+        <div className="flex gap-2">
+          {CONTROLS.map((control) => (
+            <button
+              key={control.id}
+              type="button"
+              onClick={() => setOpenControl((current) => (current === control.id ? null : control.id))}
+              aria-expanded={openControl === control.id}
+              aria-label={control.label}
+              title={control.label}
+              className={`relative flex h-10 w-10 items-center justify-center rounded-xl shadow-sm ring-1 transition duration-150 ${
+                openControl === control.id
+                  ? 'bg-brand-800 text-white ring-brand-800'
+                  : 'bg-white/95 text-stone-600 ring-stone-200 backdrop-blur hover:text-stone-900'
+              }`}
+            >
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.6"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden="true"
+                className="h-5 w-5"
+              >
+                <path d={control.icon} />
+              </svg>
+              {control.id === 'layers' && active.size < LAYERS.length && (
+                <span className="absolute -top-0.5 -right-0.5 h-2.5 w-2.5 rounded-full bg-brand-600 ring-2 ring-white" />
+              )}
+            </button>
+          ))}
         </div>
 
-        <div className="rounded-2xl bg-white/95 p-2.5 shadow-sm ring-1 ring-stone-200 backdrop-blur">
-          <p className="mb-1.5 hidden text-right text-[0.6875rem] tracking-wide text-stone-400 sm:block">
-            表示する場所
-          </p>
-          <div className="flex flex-wrap justify-end gap-1.5">
-            {LAYERS.map((layer) => (
-              <Pill
-                key={layer.id}
-                on={active.has(layer.id)}
-                colorVar={layer.colorVar}
-                label={layer.label}
-                onClick={() => toggle(layer.id)}
-              />
-            ))}
+        {openControl === 'base' && (
+          <div className="rounded-2xl bg-white/95 p-2.5 shadow-sm ring-1 ring-stone-200 backdrop-blur">
+            <div className="flex justify-end gap-1.5">
+              {BASE_MAPS.map((preset) => (
+                <Pill
+                  key={preset.id}
+                  on={baseMap === preset.id}
+                  label={preset.label}
+                  onClick={() => setBaseMap(preset.id)}
+                />
+              ))}
+            </div>
           </div>
-        </div>
+        )}
+
+        {openControl === 'layers' && (
+          <div className="rounded-2xl bg-white/95 p-2.5 shadow-sm ring-1 ring-stone-200 backdrop-blur">
+            <div className="flex flex-wrap justify-end gap-1.5">
+              {LAYERS.map((layer) => (
+                <Pill
+                  key={layer.id}
+                  on={active.has(layer.id)}
+                  colorVar={layer.colorVar}
+                  label={layer.label}
+                  onClick={() => toggle(layer.id)}
+                />
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
       {!tilesReady && (
