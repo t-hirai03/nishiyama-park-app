@@ -32,6 +32,8 @@ export interface Spot extends Placed {
   readonly category: string;
   readonly genres: readonly string[];
   readonly description: string;
+  readonly homepage: string;
+  readonly address: string;
 }
 
 export const PARK: Point & { name: string } = accessData.park;
@@ -96,6 +98,7 @@ export const MAP_COLOR_VAR = {
   busStop: '--color-transit-bus',
   toilet: '--color-toilet',
   ring: '--color-brand-600',
+  route: '--color-brand-600',
   markerEdge: '--color-marker-edge',
   markerOff: '--color-marker-off',
 } as const;
@@ -115,3 +118,37 @@ export const spotsByGenre = (): { genre: Genre; spots: Spot[] }[] =>
     genre,
     spots: NEARBY_SPOTS.filter((spot) => primaryGenre(spot) === genre),
   })).filter((group) => group.spots.length > 0);
+
+/** 2点間の直線距離(m)。build-geo.mjs と同じ式。経路距離ではない */
+export const haversineM = (a: Point, b: Point): number => {
+  const R = 6_371_000;
+  const toRad = (deg: number) => (deg * Math.PI) / 180;
+  const lat1 = toRad(a.lat);
+  const lat2 = toRad(b.lat);
+  const dLat = lat2 - lat1;
+  const dLon = toRad(b.lon - a.lon);
+  const h =
+    Math.sin(dLat / 2) ** 2 + Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLon / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(h));
+};
+
+/** 不動産公取協と同じ 80m=1分・切り上げ。直線距離からの換算なので実経路より短く出る */
+export const walkMinutesOf = (meters: number): number => Math.ceil(meters / 80);
+
+/** 公園を出て順に回り、公園へ戻る距離の合計 */
+export const roundTripM = (stops: readonly Point[]): number => {
+  if (stops.length === 0) return 0;
+  const path = [PARK, ...stops, PARK];
+  return path
+    .slice(1)
+    .reduce((sum, point, index) => sum + haversineM(path[index] as Point, point), 0);
+};
+
+/** Googleマップの経路URL。waypointsは9件までなので呼び出し側で絞る */
+export const routeUrl = (stops: readonly Placed[]): string => {
+  const origin = `${PARK.lat},${PARK.lon}`;
+  const waypoints = stops.map((stop) => `${stop.lat},${stop.lon}`).join('|');
+  return `https://www.google.com/maps/dir/?api=1&origin=${origin}&destination=${origin}&waypoints=${encodeURIComponent(waypoints)}&travelmode=walking`;
+};
+
+export const spotKey = (point: Placed): string => `${point.name}@${point.lat},${point.lon}`;

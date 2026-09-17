@@ -13,6 +13,7 @@ import {
   TOILETS,
   groupBusStops,
   primaryGenre,
+  spotKey,
   type Genre,
   type Placed,
 } from '../lib/geo';
@@ -42,7 +43,7 @@ const WALK_RINGS = [
 ] as const;
 const OUTER_RING_M = 800;
 
-type LayerId = Genre | 'access' | 'toilet';
+export type LayerId = Genre | 'access' | 'toilet';
 
 const PRESENT_GENRES = GENRE_ORDER.filter((genre) =>
   NEARBY_SPOTS.some((spot) => primaryGenre(spot) === genre)
@@ -55,7 +56,7 @@ const GENRE_GLYPH: Record<Genre, GlyphId> = {
   遊ぶ: 'play',
 };
 
-const LAYERS: readonly { id: LayerId; label: string; colorVar: string }[] = [
+export const LAYERS: readonly { id: LayerId; label: string; colorVar: string }[] = [
   ...PRESENT_GENRES.map((genre) => ({
     id: genre as LayerId,
     label: genre,
@@ -166,17 +167,45 @@ const Pill = ({
   </button>
 );
 
-export const ParkMap = () => {
+export interface ParkMapProps {
+  /** 表示中の種類。パネル側のチップと共有する */
+  readonly active: ReadonlySet<LayerId>;
+  readonly onToggleLayer: (id: LayerId) => void;
+  /** 寄せたい地点。一覧の行を押したときに変わる */
+  readonly focus: Placed | null;
+  /** 周遊ルート。公園発・公園着で結ぶ */
+  readonly route: readonly Placed[];
+  /** 公園と結ぶ直線。アクセスの出発地を選んだときに引く */
+  readonly link: Placed | null;
+  /** パネルが地図に重なっているか。自動フィットの余白に効く */
+  readonly panelOpen: boolean;
+}
+
+/** パネルは地図の左に重なるので、その幅を除いた範囲に収めないと内容が隠れる */
+const PANEL_INSET = 456;
+const EDGE = 24;
+
+export const ParkMap = ({ active, onToggleLayer, focus, route, link, panelOpen }: ParkMapProps) => {
   const container = useRef<HTMLDivElement>(null);
   const layers = useRef(new Map<LayerId, L.LayerGroup>());
+  const markers = useRef(new Map<string, L.Marker>());
+  const routeLine = useRef<L.Polyline | null>(null);
+  const linkLine = useRef<L.Polyline | null>(null);
   const tiles = useRef<L.TileLayer | null>(null);
   const map = useRef<L.Map | null>(null);
-  const [active, setActive] = useState<Set<LayerId>>(
-    () => new Set(LAYERS.map((layer) => layer.id))
-  );
   const [baseMap, setBaseMap] = useState<BaseMapId>(DEFAULT_BASE_MAP);
   const [tilesReady, setTilesReady] = useState(false);
   const [openControl, setOpenControl] = useState<ControlId | null>(null);
+
+  const fitOptions = (): L.FitBoundsOptions => {
+    const wide = window.matchMedia('(min-width: 1024px)').matches;
+    return panelOpen && wide
+      ? {
+          paddingTopLeft: L.point(PANEL_INSET, EDGE),
+          paddingBottomRight: L.point(EDGE, EDGE),
+        }
+      : { padding: L.point(EDGE, EDGE) };
+  };
 
   useEffect(() => {
     if (!container.current || map.current) return;
@@ -209,22 +238,25 @@ export const ParkMap = () => {
     for (const genre of PRESENT_GENRES) {
       const group = groupFor(genre);
       for (const spot of NEARBY_SPOTS.filter((s) => primaryGenre(s) === genre)) {
-        pin(spot, GENRE_COLOR_VAR[genre], GENRE_GLYPH[genre], 28)
+        const marker = pin(spot, GENRE_COLOR_VAR[genre], GENRE_GLYPH[genre], 28)
           .bindPopup(popupHtml(spot, `${spot.category}・${spot.distanceM}m / 徒歩${spot.walkMinutes}分`))
           .addTo(group);
+        markers.current.set(spotKey(spot), marker);
       }
     }
 
     const accessGroup = groupFor('access');
     for (const station of STATIONS.filter((s) => s.walkMinutes <= 15)) {
-      pin(station, MAP_COLOR_VAR.station, 'station', 34)
+      const marker = pin(station, MAP_COLOR_VAR.station, 'station', 34)
         .bindPopup(popupHtml(station, `公園まで${station.distanceM}m / 徒歩${station.walkMinutes}分`))
         .addTo(accessGroup);
+      markers.current.set(spotKey(station), marker);
     }
     for (const stop of groupBusStops(BUS_STOPS.filter((s) => s.distanceM <= 300))) {
-      pin(stop, MAP_COLOR_VAR.busStop, 'bus', 26)
+      const marker = pin(stop, MAP_COLOR_VAR.busStop, 'bus', 26)
         .bindPopup(popupHtml(stop, `バス停・${stop.routes.join('・')}／公園まで${stop.distanceM}m`))
         .addTo(accessGroup);
+      markers.current.set(spotKey(stop), marker);
     }
 
     const toiletGroup = groupFor('toilet');
@@ -248,14 +280,17 @@ export const ParkMap = () => {
       ...NEARBY_SPOTS.map((spot) => [spot.lat, spot.lon] as [number, number]),
       [PARK.lat, PARK.lon],
     ]).extend(L.latLng(PARK.lat, PARK.lon).toBounds(OUTER_RING_M * 2));
-    instance.fitBounds(bounds, { padding: [24, 24] });
+    instance.fitBounds(bounds, fitOptions());
     map.current = instance;
 
     return () => {
       instance.remove();
       map.current = null;
       tiles.current = null;
+      routeLine.current = null;
+      linkLine.current = null;
       layers.current.clear();
+      markers.current.clear();
     };
   }, []);
 
@@ -291,6 +326,52 @@ export const ParkMap = () => {
     }
   }, [active]);
 
+  useEffect(() => {
+    const instance = map.current;
+    if (!instance || !focus) return;
+    instance.flyTo([focus.lat, focus.lon], Math.max(instance.getZoom(), 16), { duration: 0.6 });
+    markers.current.get(spotKey(focus))?.openPopup();
+  }, [focus]);
+
+  useEffect(() => {
+    const instance = map.current;
+    if (!instance) return;
+    routeLine.current?.remove();
+    routeLine.current = null;
+    if (route.length === 0) return;
+    const path: [number, number][] = [
+      [PARK.lat, PARK.lon],
+      ...route.map((stop) => [stop.lat, stop.lon] as [number, number]),
+      [PARK.lat, PARK.lon],
+    ];
+    routeLine.current = L.polyline(path, {
+      color: cssColor(MAP_COLOR_VAR.route),
+      weight: 4,
+      opacity: 0.9,
+    }).addTo(instance);
+    instance.fitBounds(L.latLngBounds(path), fitOptions());
+  }, [route]);
+
+  useEffect(() => {
+    const instance = map.current;
+    if (!instance) return;
+    linkLine.current?.remove();
+    linkLine.current = null;
+    if (!link) return;
+    const path: [number, number][] = [
+      [PARK.lat, PARK.lon],
+      [link.lat, link.lon],
+    ];
+    linkLine.current = L.polyline(path, {
+      color: cssColor(MAP_COLOR_VAR.route),
+      weight: 5,
+      dashArray: '9 10',
+      opacity: 0.95,
+      lineCap: 'round',
+    }).addTo(instance);
+    instance.fitBounds(L.latLngBounds(path), fitOptions());
+  }, [link]);
+
   // 高さを親のレイアウトに任せるので、サイズ変更をLeafletに伝えないとタイルが欠ける
   useEffect(() => {
     const node = container.current;
@@ -299,14 +380,6 @@ export const ParkMap = () => {
     observer.observe(node);
     return () => observer.disconnect();
   }, []);
-
-  const toggle = (id: LayerId) =>
-    setActive((current) => {
-      const next = new Set(current);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
 
   return (
     <div className="relative h-full min-h-[20rem] w-full">
@@ -371,7 +444,7 @@ export const ParkMap = () => {
                   on={active.has(layer.id)}
                   colorVar={layer.colorVar}
                   label={layer.label}
-                  onClick={() => toggle(layer.id)}
+                  onClick={() => onToggleLayer(layer.id)}
                 />
               ))}
             </div>
