@@ -124,33 +124,7 @@ export const spotsByGenre = (): { genre: Genre; spots: Spot[] }[] =>
     spots: NEARBY_SPOTS.filter((spot) => primaryGenre(spot) === genre),
   })).filter((group) => group.spots.length > 0);
 
-/** 2点間の直線距離(m)。build-geo.mjs と同じ式。経路距離ではない */
-export const haversineM = (a: Point, b: Point): number => {
-  const R = 6_371_000;
-  const toRad = (deg: number) => (deg * Math.PI) / 180;
-  const lat1 = toRad(a.lat);
-  const lat2 = toRad(b.lat);
-  const dLat = lat2 - lat1;
-  const dLon = toRad(b.lon - a.lon);
-  const h =
-    Math.sin(dLat / 2) ** 2 + Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLon / 2) ** 2;
-  return 2 * R * Math.asin(Math.sqrt(h));
-};
-
-/** 不動産公取協と同じ 80m=1分・切り上げ。直線距離からの換算なので実経路より短く出る */
-export const walkMinutesOf = (meters: number): number => Math.ceil(meters / 80);
-
 export const spotKey = (point: Anchor): string => `${point.name}@${point.lat},${point.lon}`;
-
-/**
- * 園内の目的地。座標は公共トイレデータから取っている。
- * 中央広場・冒険の森・嚮陽庭園などは園内の地点名そのものなので、
- * トイレの位置がそのまま園内のランドマークの座標として使える。
- */
-export const PARK_PLACES: readonly Anchor[] = [
-  { name: '公園の中心', lat: PARK.lat, lon: PARK.lon },
-  ...TOILETS.map((toilet) => ({ name: toilet.name, lat: toilet.lat, lon: toilet.lon })),
-];
 
 export const TRAVEL_MODES = [
   { id: 'walking', label: '徒歩' },

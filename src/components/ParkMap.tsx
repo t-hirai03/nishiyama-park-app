@@ -189,11 +189,6 @@ export interface ParkMapProps {
   readonly focus: Placed | null;
   /** 2地点を結ぶ直線。アクセスで出発地と目的地を選んだときに引く */
   readonly link: { readonly from: Anchor; readonly to: Anchor } | null;
-  /** 地図で指した地点や現在地。専用のピンを出す */
-  readonly marker: Anchor | null;
-  /** 地図クリックで出発地を指定する待ち受け状態 */
-  readonly picking: boolean;
-  readonly onPick: (point: { lat: number; lon: number }) => void;
   /** パネルが地図に重なっているか。自動フィットの余白に効く */
   readonly panelOpen: boolean;
 }
@@ -207,9 +202,6 @@ export const ParkMap = ({
   onToggleLayer,
   focus,
   link,
-  marker,
-  picking,
-  onPick,
   panelOpen,
 }: ParkMapProps) => {
   const wrapper = useRef<HTMLDivElement>(null);
@@ -217,7 +209,7 @@ export const ParkMap = ({
   const layers = useRef(new Map<LayerId, L.LayerGroup>());
   const markers = useRef(new Map<string, L.Marker>());
   const linkLine = useRef<L.LayerGroup | null>(null);
-  const customPin = useRef<L.Marker | null>(null);
+  const fitted = useRef(false);
   const tiles = useRef<L.TileLayer | null>(null);
   const map = useRef<L.Map | null>(null);
   const [baseMap, setBaseMap] = useState<BaseMapId>(DEFAULT_BASE_MAP);
@@ -233,6 +225,26 @@ export const ParkMap = ({
           paddingBottomRight: L.point(EDGE, EDGE),
         }
       : { padding: L.point(EDGE, EDGE) };
+  };
+
+  /**
+   * 初期表示が見どころのときは地図が display:none で始まるため、Leafletが
+   * サイズ0で初期化される。その状態で fitBounds すると倍率が壊れるので、
+   * 実寸が付くまで待ち、ResizeObserver 側から呼び直す。
+   */
+  const fitInitialBounds = () => {
+    const instance = map.current;
+    const node = container.current;
+    if (!instance || !node || fitted.current) return;
+    if (node.clientWidth === 0 || node.clientHeight === 0) return;
+    instance.fitBounds(
+      L.latLngBounds([
+        ...NEARBY_SPOTS.map((spot) => [spot.lat, spot.lon] as [number, number]),
+        [PARK.lat, PARK.lon],
+      ]).extend(L.latLng(PARK.lat, PARK.lon).toBounds(OUTER_RING_M * 2)),
+      fitOptions()
+    );
+    fitted.current = true;
   };
 
   useEffect(() => {
@@ -310,21 +322,17 @@ export const ParkMap = ({
       .addTo(instance);
 
     // L.Circle#getBounds は地図に追加済みでないと使えないため latLng#toBounds を使う
-    const bounds = L.latLngBounds([
-      ...NEARBY_SPOTS.map((spot) => [spot.lat, spot.lon] as [number, number]),
-      [PARK.lat, PARK.lon],
-    ]).extend(L.latLng(PARK.lat, PARK.lon).toBounds(OUTER_RING_M * 2));
-    instance.fitBounds(bounds, fitOptions());
     map.current = instance;
+    fitInitialBounds();
 
     return () => {
       instance.remove();
       map.current = null;
       tiles.current = null;
       linkLine.current = null;
-      customPin.current = null;
       layers.current.clear();
       markers.current.clear();
+      fitted.current = false;
     };
   }, []);
 
@@ -381,38 +389,6 @@ export const ParkMap = ({
     instance.fitBounds(L.latLngBounds(path), fitOptions());
   }, [link]);
 
-  useEffect(() => {
-    const instance = map.current;
-    if (!instance) return;
-    customPin.current?.remove();
-    customPin.current = null;
-    if (!marker) return;
-    customPin.current = pin(
-      { ...marker, distanceM: 0, walkMinutes: 0 },
-      MAP_COLOR_VAR.custom,
-      'here',
-      34
-    )
-      .bindTooltip(marker.name, { direction: 'top', offset: [0, -32] })
-      .addTo(instance);
-  }, [marker]);
-
-  // 指定待ちのあいだだけクリックを拾う
-  useEffect(() => {
-    const instance = map.current;
-    if (!instance) return;
-    const container = instance.getContainer();
-    container.style.cursor = picking ? 'crosshair' : '';
-    if (!picking) return;
-    const onClick = (event: L.LeafletMouseEvent) =>
-      onPick({ lat: event.latlng.lat, lon: event.latlng.lng });
-    instance.on('click', onClick);
-    return () => {
-      instance.off('click', onClick);
-      container.style.cursor = '';
-    };
-  }, [picking, onPick]);
-
   /**
    * 修飾キーを押している間だけホイールで拡大縮小する。修飾キーなしのホイールは
    * ページのスクロールに残したいので、Leafletのハンドラを都度切り替える。
@@ -449,7 +425,10 @@ export const ParkMap = ({
   useEffect(() => {
     const node = container.current;
     if (!node) return;
-    const observer = new ResizeObserver(() => map.current?.invalidateSize());
+    const observer = new ResizeObserver(() => {
+      map.current?.invalidateSize();
+      fitInitialBounds();
+    });
     observer.observe(node);
     return () => observer.disconnect();
   }, []);
@@ -524,22 +503,6 @@ export const ParkMap = ({
           </div>
         )}
       </div>
-
-      {picking && (
-        <div className="pointer-events-none absolute inset-x-0 top-3 z-800 flex justify-center px-16">
-          <p className="rounded-full bg-brand-800/90 px-4 py-2 text-xs text-white">
-            地図を押すと、その地点を出発地にします
-          </p>
-        </div>
-      )}
-
-      {showZoomHint && (
-        <div className="pointer-events-none absolute inset-0 z-800 flex items-center justify-center">
-          <p className="rounded-full bg-brand-800/90 px-5 py-2.5 text-sm text-white">
-            {ZOOM_KEY} + スクロールで拡大縮小できます
-          </p>
-        </div>
-      )}
 
       {!tilesReady && (
         <div className="pointer-events-none absolute inset-0 z-800 flex items-center justify-center bg-stone-100">
