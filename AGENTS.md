@@ -40,9 +40,11 @@
   `npx tsc --noEmit` と `npx astro build` の通過を確認済み
 - `src/lib`（約1,100行）が見頃・混雑・気温・天気の採点ロジック。**流用が前提。捨てない**
 - `/data`（データ解説ページ）は削除した。出典表記はトップのフッターに集約
-- 画面から到達しないファイルが4件ある。消していないので流用できる:
-  `VisitPlanner.tsx`(352行) / `narrative.ts`(135行) / `ColumnChart.astro` / `BarList.astro`
-- `claim.ts` と `url-state.ts` は画面では未使用だが `npm run check:claim` / `check:url` が参照している
+- 到達不能になったファイルは削除済み（`VisitPlanner.tsx` / `narrative.ts` /
+  `Section.astro` / `ColumnChart.astro` / `BarList.astro` / `AccessMap.astro` / `RoundMap.astro`）。
+  復元するなら削除前のコミットから取る
+- `claim.ts` `url-state.ts` `season.ts` `trend.ts` `period.ts` `holidays.ts` は画面では未使用だが
+  `npm run check:claim` / `check:url` が参照している。**スクリプトを消すとこの6件も道連れになる**
 - アクセス（駅・バス停・園内トイレ）は `npm run build:geo` で変換済み。
   実測値と注意点は `data/catalog/README.md` の「取得済み・変換済み」を読む
 
