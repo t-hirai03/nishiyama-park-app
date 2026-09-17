@@ -1,6 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
 import { WeatherIcon } from './WeatherIcon';
-import { WEATHER_LABEL, formatShortDate, isWeekendDate } from '../lib/days';
+import {
+  DATA_AREA,
+  DATA_FISCAL_YEAR,
+  DATA_NOTE,
+  WEATHER_LABEL,
+  formatShortDate,
+  isWeekendDate,
+} from '../lib/days';
 import { fetchForecast, outlookFor, type ForecastMap } from '../lib/forecast';
 import { yearStats } from '../lib/insights';
 import { DEFAULT_PREFERENCES, scoreDay } from '../lib/scoring';
@@ -110,7 +117,7 @@ export const ParkStatus = () => {
             {WEATHER_LABEL[outlook.category]} {outlook.tempMax}℃
           </span>
           <span className="text-sm font-bold text-stone-900 tabular-nums">
-            <span className="text-xs font-normal text-stone-500">約</span>
+            <span className="text-xs font-normal text-stone-500">人出 約</span>
             {expectedVisitors.toLocaleString()}
             <span className="text-xs font-normal text-stone-500">人</span>
           </span>
@@ -145,12 +152,20 @@ export const ParkStatus = () => {
               note="人（実測）"
             />
           </dl>
-          <p className="mt-4 border-t border-stone-200 pt-3 text-xs leading-relaxed text-stone-500">
-            {outlook.source === 'forecast'
-              ? '天気は Open-Meteo の予報。'
-              : '天気予報が取得できなかったため、月別の平年値で計算しています。'}
-            人出は令和7年度の日別実測365日を曜日と天気で補正した推計です。
-          </p>
+          <div className="mt-4 space-y-2 border-t border-stone-200 pt-3">
+            <p className="text-xs leading-relaxed text-stone-500">
+              人出は{DATA_FISCAL_YEAR}の日別実測365日から、曜日と天気の影響を取り除いた季節成分に
+              曜日係数と天気係数を掛けた推計です。
+            </p>
+            <p className="text-xs leading-relaxed text-stone-500">
+              対象は<strong className="font-semibold text-stone-700">{DATA_AREA}</strong>。{DATA_NOTE}
+            </p>
+            <p className="text-xs leading-relaxed text-stone-500">
+              {outlook.source === 'forecast'
+                ? '天気は Open-Meteo の予報です。'
+                : '天気予報が取得できなかったため、月別の平年値で計算しています。'}
+            </p>
+          </div>
         </div>
       )}
     </div>

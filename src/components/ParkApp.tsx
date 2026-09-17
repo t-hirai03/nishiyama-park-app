@@ -34,6 +34,7 @@ export interface HighlightPhoto {
   readonly src: string;
   readonly width: number;
   readonly height: number;
+  readonly medium: string;
   readonly full: string;
   readonly fullWidth: number;
   readonly fullHeight: number;
@@ -147,6 +148,8 @@ export const ParkApp = ({ highlights }: { highlights: readonly Highlight[] }) =>
     );
 
   const highlight = highlights.find((item) => item.id === highlightId) ?? highlights[0];
+  /** 写真は大きく見せたいので、このパネルだけ地図を隠して右側を全部使う */
+  const fullWidth = panel === 'highlights';
 
   return (
     <div className="flex flex-1 flex-col lg:min-h-0 lg:flex-row">
@@ -157,7 +160,9 @@ export const ParkApp = ({ highlights }: { highlights: readonly Highlight[] }) =>
       />
 
       <div className="relative flex flex-1 flex-col lg:block lg:min-h-0">
-        <main className="h-[55dvh] shrink-0 lg:absolute lg:inset-0 lg:h-auto">
+        <main
+          className={`shrink-0 lg:absolute lg:inset-0 lg:h-auto ${fullWidth ? 'hidden' : 'h-[55dvh]'}`}
+        >
           <ParkMap
             active={active}
             onToggleLayer={toggleLayer}
@@ -176,8 +181,20 @@ export const ParkApp = ({ highlights }: { highlights: readonly Highlight[] }) =>
         </main>
 
         {panel && (
-          <div className="lg:pointer-events-none lg:absolute lg:inset-y-0 lg:left-0 lg:z-900 lg:w-[27rem] lg:max-w-[calc(100%-1.5rem)] lg:overflow-y-auto lg:overscroll-contain lg:p-4">
-            <div className="bg-stone-50 px-4 py-5 sm:px-5 lg:pointer-events-auto lg:rounded-3xl lg:bg-white/95 lg:shadow-lg lg:ring-1 lg:ring-stone-200 lg:backdrop-blur">
+          <div
+            className={
+              fullWidth
+                ? 'flex-1 bg-brand-50 lg:absolute lg:inset-0 lg:overflow-y-auto'
+                : 'lg:pointer-events-none lg:absolute lg:inset-y-0 lg:left-0 lg:z-900 lg:w-[27rem] lg:max-w-[calc(100%-1.5rem)] lg:overflow-y-auto lg:overscroll-contain lg:p-4'
+            }
+          >
+            <div
+              className={
+                fullWidth
+                  ? 'mx-auto w-[min(72rem,100%)] px-4 py-6 sm:px-6 sm:py-8'
+                  : 'bg-stone-50 px-4 py-5 sm:px-5 lg:pointer-events-auto lg:rounded-3xl lg:bg-white/95 lg:shadow-lg lg:ring-1 lg:ring-stone-200 lg:backdrop-blur'
+              }
+            >
               {panel === 'around' && (
                 <>
                   <PanelHead
@@ -474,54 +491,93 @@ export const ParkApp = ({ highlights }: { highlights: readonly Highlight[] }) =>
                 <>
                   <PanelHead
                     title="見どころ"
-                    lead="見頃の時期は日別来訪者数から機械的に導いたものです。時期を選ぶと写真が切り替わります。"
+                    lead="見頃の時期は日別来訪者数から機械的に導いたものです。"
                   />
 
-                  <div className="mt-4 flex flex-wrap gap-1.5">
-                    {highlights.map((item) => (
-                      <Chip
-                        key={item.id}
-                        on={item.id === highlight.id}
-                        label={item.title}
-                        onClick={() => {
-                          setHighlightId(item.id);
-                          setViewerIndex(null);
-                        }}
-                      />
-                    ))}
+                  <div
+                    role="tablist"
+                    aria-label="見どころの時期"
+                    className="mt-5 flex gap-1 overflow-x-auto"
+                    onKeyDown={(event) => {
+                      const step =
+                        event.key === 'ArrowRight' ? 1 : event.key === 'ArrowLeft' ? -1 : 0;
+                      if (step === 0) return;
+                      event.preventDefault();
+                      const at = highlights.findIndex((item) => item.id === highlight.id);
+                      const next = highlights[(at + step + highlights.length) % highlights.length];
+                      if (!next) return;
+                      setHighlightId(next.id);
+                      setViewerIndex(null);
+                      document.getElementById(`tab-${next.id}`)?.focus();
+                    }}
+                  >
+                    {highlights.map((item) => {
+                      const on = item.id === highlight.id;
+                      return (
+                        <button
+                          key={item.id}
+                          id={`tab-${item.id}`}
+                          type="button"
+                          role="tab"
+                          aria-selected={on}
+                          aria-controls={`panel-${item.id}`}
+                          tabIndex={on ? 0 : -1}
+                          onClick={() => {
+                            setHighlightId(item.id);
+                            setViewerIndex(null);
+                          }}
+                          className={`flex shrink-0 items-baseline gap-2 rounded-t-xl px-5 py-2.5 transition duration-150 ${
+                            on
+                              ? 'bg-white text-stone-900'
+                              : 'bg-brand-100 text-brand-800/70 hover:bg-brand-200 hover:text-brand-900'
+                          }`}
+                        >
+                          <span className="text-sm font-bold">{item.title}</span>
+                          {item.window && (
+                            <span className="text-xs font-normal text-stone-400 tabular-nums">
+                              {item.window}
+                            </span>
+                          )}
+                        </button>
+                      );
+                    })}
                   </div>
 
-                  <p className="mt-4 text-sm font-bold text-stone-900">
-                    {highlight.title}
-                    {highlight.window && (
-                      <span className="ml-2 text-xs font-normal text-stone-400">
-                        {highlight.window}
-                      </span>
-                    )}
-                  </p>
-                  <p className="mt-1.5 text-xs leading-relaxed text-stone-500">{highlight.lead}</p>
-                  <ul className="mt-3 grid grid-cols-3 gap-2">
-                    {highlight.photos.map((photo, index) => (
-                      <li key={photo.src}>
-                        <button
-                          type="button"
-                          onClick={() => setViewerIndex(index)}
-                          aria-label={`${highlight.title} ${index + 1}枚目を大きく見る`}
-                          className="block w-full cursor-zoom-in overflow-hidden rounded-lg ring-brand-600 transition duration-150 hover:ring-2 focus-visible:ring-2"
-                        >
-                          <img
-                            src={photo.src}
-                            width={photo.width}
-                            height={photo.height}
-                            alt={`${highlight.title} ${index + 1}`}
-                            loading="lazy"
-                            className="aspect-[4/3] w-full object-cover transition duration-150 hover:scale-105"
-                          />
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
-                  <p className="mt-2 text-xs text-stone-400">写真を押すと大きく表示します。</p>
+                  <div
+                    id={`panel-${highlight.id}`}
+                    role="tabpanel"
+                    aria-labelledby={`tab-${highlight.id}`}
+                    tabIndex={0}
+                    className="rounded-b-2xl bg-white p-4 shadow-sm sm:p-6"
+                  >
+                    <p className="text-xs leading-relaxed text-stone-500">{highlight.lead}</p>
+                    <ul
+                      className={`mt-4 grid gap-3 ${
+                        fullWidth ? 'grid-cols-2 sm:grid-cols-3 xl:grid-cols-4' : 'grid-cols-3 gap-2'
+                      }`}
+                    >
+                      {highlight.photos.map((photo, index) => (
+                        <li key={photo.src}>
+                          <button
+                            type="button"
+                            onClick={() => setViewerIndex(index)}
+                            aria-label={`${highlight.title} ${index + 1}枚目を大きく見る`}
+                            className="block w-full cursor-zoom-in overflow-hidden rounded-xl ring-brand-600 transition duration-150 hover:ring-2 focus-visible:ring-2"
+                          >
+                            <img
+                              src={fullWidth ? photo.medium : photo.src}
+                              width={fullWidth ? 800 : photo.width}
+                              height={fullWidth ? 600 : photo.height}
+                              alt={`${highlight.title} ${index + 1}`}
+                              loading="lazy"
+                              className="aspect-[4/3] w-full object-cover transition duration-150 hover:scale-105"
+                            />
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                    <p className="mt-4 text-xs text-stone-400">写真を押すと全画面で表示します。</p>
+                  </div>
                 </>
               )}
 
