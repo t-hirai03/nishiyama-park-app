@@ -23,6 +23,12 @@
   --color-spot-eat: #ea580c;
   --color-spot-buy: #7c3aed;
   --color-spot-play: #4d7c0f;
+
+  /* 一覧のアイコンの地色。ジャンル色をそのまま敷くと濃すぎる */
+  --color-spot-see-tint: #e3f0ee;
+  --color-spot-eat-tint: #fdeae0;
+  --color-spot-buy-tint: #eee7fb;
+  --color-spot-play-tint: #eaf1de;
   --color-transit-station: #1d4ed8;
   --color-transit-bus: #0284c7;
   --color-toilet: #a8a29e;

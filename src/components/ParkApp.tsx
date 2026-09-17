@@ -2,8 +2,10 @@ import { useMemo, useState } from 'react';
 import { LAYERS, ParkMap, type LayerId } from './ParkMap';
 import { ParkPanelNav, type PanelId } from './ParkPanelNav';
 import { PhotoViewer } from './PhotoViewer';
+import { GENRE_GLYPH, SpotIcon } from './SpotIcon';
 import {
   BUS_STOPS,
+  GENRE_COLOR_VAR,
   GENRE_ORDER,
   GEO_SOURCE,
   NEARBY_SPOTS,
@@ -60,6 +62,26 @@ const FAR_M = 5_000;
 
 type OriginKind = 'preset' | 'current' | 'picked';
 
+type SortKey = 'name' | 'distance';
+
+const SORTS: readonly { id: SortKey; label: string }[] = [
+  { id: 'name', label: '名前順' },
+  { id: 'distance', label: '近い順' },
+];
+
+/**
+ * 観光データに名称の読み（かな）が無いため、漢字の名前は読み順にならない。
+ * かな始まりの20件は期待どおり並び、漢字始まりの29件はUnicodeの順になる。
+ */
+const JA_COLLATOR = new Intl.Collator('ja');
+
+const GENRE_TINT: Record<Genre, string> = {
+  観る: '--color-spot-see-tint',
+  食べる: '--color-spot-eat-tint',
+  買う: '--color-spot-buy-tint',
+  遊ぶ: '--color-spot-play-tint',
+};
+
 const Chip = ({
   on,
   label,
@@ -94,6 +116,7 @@ export const ParkApp = ({ highlights }: { highlights: readonly Highlight[] }) =>
     () => new Set(LAYERS.map((layer) => layer.id))
   );
   const [genres, setGenres] = useState<ReadonlySet<Genre>>(() => new Set(GENRE_ORDER));
+  const [sortKey, setSortKey] = useState<SortKey>('name');
   const [focus, setFocus] = useState<Placed | null>(null);
   const [stops, setStops] = useState<readonly Spot[]>([]);
   // 現在地と地図で指した地点はどちらも候補外の座標なので、種類を別に持つ
@@ -125,14 +148,15 @@ export const ParkApp = ({ highlights }: { highlights: readonly Highlight[] }) =>
     toggleLayer(genre);
   };
 
-  const visibleSpots = useMemo(
-    () =>
-      NEARBY_SPOTS.filter((spot) => {
-        const genre = primaryGenre(spot);
-        return genre ? genres.has(genre) : false;
-      }),
-    [genres]
-  );
+  const visibleSpots = useMemo(() => {
+    const matched = NEARBY_SPOTS.filter((spot) => {
+      const genre = primaryGenre(spot);
+      return genre ? genres.has(genre) : false;
+    });
+    return sortKey === 'distance'
+      ? [...matched].sort((a, b) => a.distanceM - b.distanceM)
+      : [...matched].sort((a, b) => JA_COLLATOR.compare(a.name, b.name));
+  }, [genres, sortKey]);
 
   const selectedKeys = useMemo(() => new Set(stops.map(spotKey)), [stops]);
   const linkM = useMemo(() => (from ? Math.round(haversineM(from.place, to)) : 0), [from, to]);
@@ -167,7 +191,6 @@ export const ParkApp = ({ highlights }: { highlights: readonly Highlight[] }) =>
             active={active}
             onToggleLayer={toggleLayer}
             focus={focus}
-            route={stops}
             link={from ? { from: from.place, to } : null}
             marker={from && from.kind !== 'preset' ? from.place : null}
             picking={picking}
@@ -199,7 +222,7 @@ export const ParkApp = ({ highlights }: { highlights: readonly Highlight[] }) =>
                 <>
                   <PanelHead
                     title="公園を出てから、どこへ寄れるか"
-                    lead={`鯖江市の観光データから半径900m以内のスポット${NEARBY_SPOTS.length}件。名前を押すと地図が寄り、＋を押すと公園から回るルートに入ります。`}
+                    lead={`鯖江市の観光データから半径900m以内のスポット${NEARBY_SPOTS.length}件。名前を押すと地図が寄り、＋を押すと公園から回るルートに入ります。名前順は、データに読みが無いため漢字の名前は読み順になりません。`}
                   />
 
                   <div className="mt-4 flex flex-wrap gap-1.5">
@@ -215,7 +238,7 @@ export const ParkApp = ({ highlights }: { highlights: readonly Highlight[] }) =>
                     ))}
                   </div>
 
-                  <div className="mt-4 rounded-2xl bg-brand-50 p-4">
+                  <div className="sticky top-0 z-10 mt-4 rounded-2xl bg-brand-50 p-4 ring-1 ring-brand-100">
                     <p className="text-xs font-bold text-brand-800">
                       寄り道ルート
                       <span className="ml-2 font-normal text-stone-500">
@@ -276,24 +299,56 @@ export const ParkApp = ({ highlights }: { highlights: readonly Highlight[] }) =>
                     )}
                   </div>
 
-                  <ul className="mt-4">
+                  <div className="mt-5 flex flex-wrap items-center justify-between gap-2">
+                    <p className="text-xs text-stone-500">
+                      {visibleSpots.length === NEARBY_SPOTS.length
+                        ? `${NEARBY_SPOTS.length}件`
+                        : `${NEARBY_SPOTS.length}件のうち${visibleSpots.length}件`}
+                    </p>
+                    <div className="flex gap-1">
+                      {SORTS.map((sort) => (
+                        <Chip
+                          key={sort.id}
+                          on={sortKey === sort.id}
+                          label={sort.label}
+                          onClick={() => setSortKey(sort.id)}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                  <ul className="mt-1">
                     {visibleSpots.map((spot) => {
                       const selected = selectedKeys.has(spotKey(spot));
+                      const genre = primaryGenre(spot);
                       return (
                         <li
                           key={spotKey(spot)}
-                          className="-mx-2 flex items-center gap-2 rounded-lg px-2 py-2 transition duration-150 hover:bg-brand-50"
+                          className="-mx-2 flex items-center gap-2.5 rounded-xl px-2 py-2 transition duration-150 hover:bg-brand-50"
                         >
                           <button
                             type="button"
                             onClick={() => setFocus(spot)}
-                            className="min-w-0 flex-1 text-left"
+                            className="flex min-w-0 flex-1 items-center gap-2.5 text-left"
                           >
-                            <span className="block truncate text-sm font-bold text-stone-900">
-                              {spot.name}
-                            </span>
-                            <span className="mt-0.5 block truncate text-xs text-stone-400">
-                              {spot.category}・{spot.distanceM}m / 徒歩{spot.walkMinutes}分
+                            {genre && (
+                              <span
+                                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full"
+                                style={{ background: `var(${GENRE_TINT[genre]})` }}
+                              >
+                                <SpotIcon
+                                  glyph={GENRE_GLYPH[genre]}
+                                  colorVar={GENRE_COLOR_VAR[genre]}
+                                  className="h-4 w-4"
+                                />
+                              </span>
+                            )}
+                            <span className="min-w-0">
+                              <span className="block truncate text-sm font-bold text-stone-900">
+                                {spot.name}
+                              </span>
+                              <span className="mt-0.5 block truncate text-xs text-stone-400">
+                                {spot.category}・徒歩{spot.walkMinutes}分（{spot.distanceM}m）
+                              </span>
                             </span>
                           </button>
                           {spot.homepage && (
@@ -301,10 +356,22 @@ export const ParkApp = ({ highlights }: { highlights: readonly Highlight[] }) =>
                               href={spot.homepage}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="shrink-0 text-xs text-stone-400 transition duration-150 hover:text-brand-700"
+                              className="shrink-0 rounded-full p-1.5 text-stone-400 transition duration-150 hover:bg-white hover:text-brand-700"
                               aria-label={`${spot.name}のサイトを開く`}
+                              title="サイトを開く"
                             >
-                              ↗
+                              <svg
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                strokeWidth="1.8"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                aria-hidden="true"
+                                className="h-4 w-4"
+                              >
+                                <path d="M14 4h6v6M20 4l-8.5 8.5M18 14v4a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4" />
+                              </svg>
                             </a>
                           )}
                           <button
@@ -315,13 +382,24 @@ export const ParkApp = ({ highlights }: { highlights: readonly Highlight[] }) =>
                               selected ? `${spot.name}をルートから外す` : `${spot.name}をルートに追加`
                             }
                             disabled={!selected && stops.length >= MAX_STOPS}
-                            className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-sm transition duration-150 disabled:opacity-30 ${
+                            className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full transition duration-150 disabled:opacity-30 ${
                               selected
                                 ? 'bg-brand-600 text-white'
                                 : 'bg-brand-50 text-brand-700 hover:bg-brand-100'
                             }`}
                           >
-                            {selected ? '✓' : '+'}
+                            <svg
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth="2.2"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              aria-hidden="true"
+                              className="h-4 w-4"
+                            >
+                              <path d={selected ? 'm5 13 4 4L19 7' : 'M12 5v14M5 12h14'} />
+                            </svg>
                           </button>
                         </li>
                       );
@@ -333,8 +411,9 @@ export const ParkApp = ({ highlights }: { highlights: readonly Highlight[] }) =>
                     </p>
                   )}
                   <p className="mt-4 text-xs leading-relaxed text-stone-400">
-                    ↗ はデータセットに収録されたURLへのリンクです（{LINKED_SPOTS}/
+                    右上のアイコンはデータセットに収録されたURLへのリンクです（{LINKED_SPOTS}/
                     {NEARBY_SPOTS.length}件）。収録時点のURLなので、現在は繋がらない場合があります。
+                    営業時間や口コミは、ピンを押して出るGoogleマップのリンクから確認できます。
                   </p>
                 </>
               )}

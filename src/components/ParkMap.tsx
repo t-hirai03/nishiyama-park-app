@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
+import { GENRE_GLYPH, PIN_GLYPH, type GlyphId } from './SpotIcon';
 import {
   BUS_STOPS,
   GENRE_COLOR_VAR,
@@ -12,6 +13,7 @@ import {
   STATIONS,
   TOILETS,
   groupBusStops,
+  placeSearchUrl,
   primaryGenre,
   spotKey,
   type Anchor,
@@ -56,13 +58,6 @@ const PRESENT_GENRES = GENRE_ORDER.filter((genre) =>
   NEARBY_SPOTS.some((spot) => primaryGenre(spot) === genre)
 );
 
-const GENRE_GLYPH: Record<Genre, GlyphId> = {
-  観る: 'see',
-  食べる: 'eat',
-  買う: 'buy',
-  遊ぶ: 'play',
-};
-
 export const LAYERS: readonly { id: LayerId; label: string; colorVar: string }[] = [
   ...PRESENT_GENRES.map((genre) => ({
     id: genre as LayerId,
@@ -91,33 +86,19 @@ const CONTROLS: readonly { id: ControlId; label: string; icon: string }[] = [
 const directionsUrl = (point: Placed) =>
   `https://www.google.com/maps/dir/?api=1&destination=${point.lat},${point.lon}&travelmode=walking`;
 
-const popupHtml = (point: Placed, detail: string) => `
+const popupHtml = (point: Placed, detail: string, address = '') => `
   <p class="text-sm font-bold text-stone-900">${point.name}</p>
   <p class="mt-0.5 text-xs text-stone-500">${detail}</p>
   <a href="${directionsUrl(point)}" target="_blank" rel="noopener noreferrer"
-     class="mt-2 inline-block text-xs font-medium text-brand-700 underline underline-offset-4">
+     class="mt-2 block text-xs font-medium text-brand-700 underline underline-offset-4">
     Googleマップで経路を見る ↗
+  </a>
+  <a href="${placeSearchUrl(point.name, address)}" target="_blank" rel="noopener noreferrer"
+     class="mt-1 block text-xs font-medium text-brand-700 underline underline-offset-4">
+    営業時間や口コミを見る ↗
   </a>`;
 
-/**
- * ピンの中に入れるアイコン。24x24で描いて、ピンの頭に縮小して載せる。
- * 小さく出るので線は太めにし、形の数を絞っている。
- */
-const PIN_GLYPH = {
-  see: '<path d="M1.5 12S5.5 6 12 6s10.5 6 10.5 6-4 6-10.5 6S1.5 12 1.5 12Z"/><circle cx="12" cy="12" r="2.6" fill="currentColor" stroke="none"/>',
-  eat: '<path d="M8.5 3v18M5.5 3v5.5a3 3 0 0 0 6 0V3M16.5 21V13m0 0c-1.8 0-2.8-1.6-2.8-4.5S14.7 3 16.5 3s2.8 2.6 2.8 5.5-1 4.5-2.8 4.5Z"/>',
-  buy: '<path d="M5.5 8h13l-1.2 12.5H6.7L5.5 8Zm3.6 0V5.8a2.9 2.9 0 0 1 5.8 0V8"/>',
-  play: '<path d="M12 21v-4.5M6.5 16.5h11L12 7l-5.5 9.5Z"/>',
-  park: '<path d="M12 21v-5M7 16h10l-5-6.5L7 16Zm1.5-6h7L12 4l-3.5 6Z"/>',
-  station:
-    '<path d="M7.5 3.5h9a2 2 0 0 1 2 2v8.5a2 2 0 0 1-2 2h-9a2 2 0 0 1-2-2V5.5a2 2 0 0 1 2-2Zm-2 4.5h13M9.5 12h.5m4.5 0h.5M8.5 16 6.5 20.5m9-4.5 2 4.5"/>',
-  bus: '<path d="M5.5 5.5h13v9.5h-13V5.5Zm0 4.5h13M8 15v3m8-3v3M9 8h6"/>',
-  here: '<path d="M12 2.5v3m0 13v3M2.5 12h3m13 0h3M12 7.5a4.5 4.5 0 1 0 0 9 4.5 4.5 0 0 0 0-9Z"/>',
-  toilet:
-    '<path d="M12 4.5v15"/><path d="M7.5 8.5a1.6 1.6 0 1 0 0-3.2 1.6 1.6 0 0 0 0 3.2Zm0 0c-1.3 0-2 .9-2 2v4h1.2v5h1.6v-5H9.5v-4c0-1.1-.7-2-2-2Z"/><path d="M16.5 8.5a1.6 1.6 0 1 0 0-3.2 1.6 1.6 0 0 0 0 3.2Zm0 0c-1.4 0-2.1 1-2.3 2.2l-.7 4.3h1.4v4.5h3.2V15h1.4l-.7-4.3c-.2-1.2-.9-2.2-2.3-2.2Z"/>',
-} as const;
 
-type GlyphId = keyof typeof PIN_GLYPH;
 
 /** 頭の円の中心が (14,13)、先端が (14,35) の水滴形 */
 const PIN_SHAPE = 'M14 1c-6.6 0-12 5.4-12 12 0 8.6 12 22 12 22s12-13.4 12-22c0-6.6-5.4-12-12-12Z';
@@ -206,8 +187,6 @@ export interface ParkMapProps {
   readonly onToggleLayer: (id: LayerId) => void;
   /** 寄せたい地点。一覧の行を押したときに変わる */
   readonly focus: Placed | null;
-  /** 周遊ルート。公園発・公園着で結ぶ */
-  readonly route: readonly Placed[];
   /** 2地点を結ぶ直線。アクセスで出発地と目的地を選んだときに引く */
   readonly link: { readonly from: Anchor; readonly to: Anchor } | null;
   /** 地図で指した地点や現在地。専用のピンを出す */
@@ -227,7 +206,6 @@ export const ParkMap = ({
   active,
   onToggleLayer,
   focus,
-  route,
   link,
   marker,
   picking,
@@ -238,7 +216,6 @@ export const ParkMap = ({
   const container = useRef<HTMLDivElement>(null);
   const layers = useRef(new Map<LayerId, L.LayerGroup>());
   const markers = useRef(new Map<string, L.Marker>());
-  const routeLine = useRef<L.LayerGroup | null>(null);
   const linkLine = useRef<L.LayerGroup | null>(null);
   const customPin = useRef<L.Marker | null>(null);
   const tiles = useRef<L.TileLayer | null>(null);
@@ -290,7 +267,13 @@ export const ParkMap = ({
       const group = groupFor(genre);
       for (const spot of NEARBY_SPOTS.filter((s) => primaryGenre(s) === genre)) {
         const marker = pin(spot, GENRE_COLOR_VAR[genre], GENRE_GLYPH[genre], 28)
-          .bindPopup(popupHtml(spot, `${spot.category}・${spot.distanceM}m / 徒歩${spot.walkMinutes}分`))
+          .bindPopup(
+            popupHtml(
+              spot,
+              `${spot.category}・${spot.distanceM}m / 徒歩${spot.walkMinutes}分`,
+              spot.address
+            )
+          )
           .addTo(group);
         markers.current.set(spotKey(spot), marker);
       }
@@ -338,7 +321,6 @@ export const ParkMap = ({
       instance.remove();
       map.current = null;
       tiles.current = null;
-      routeLine.current = null;
       linkLine.current = null;
       customPin.current = null;
       layers.current.clear();
@@ -384,21 +366,6 @@ export const ParkMap = ({
     instance.flyTo([focus.lat, focus.lon], Math.max(instance.getZoom(), 16), { duration: 0.6 });
     markers.current.get(spotKey(focus))?.openPopup();
   }, [focus]);
-
-  useEffect(() => {
-    const instance = map.current;
-    if (!instance) return;
-    routeLine.current?.remove();
-    routeLine.current = null;
-    if (route.length === 0) return;
-    const path: [number, number][] = [
-      [PARK.lat, PARK.lon],
-      ...route.map((stop) => [stop.lat, stop.lon] as [number, number]),
-      [PARK.lat, PARK.lon],
-    ];
-    routeLine.current = casedLine(path, {}).addTo(instance);
-    instance.fitBounds(L.latLngBounds(path), fitOptions());
-  }, [route]);
 
   useEffect(() => {
     const instance = map.current;
