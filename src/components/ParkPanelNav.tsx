@@ -1,6 +1,13 @@
-export type PanelId = 'around' | 'access' | 'highlights' | 'sources';
+export type PanelId = 'highlights' | 'around' | 'access' | 'contact' | 'sources';
 
-const PANELS: readonly { id: PanelId; label: string; note: (spots: number) => string; icon: string }[] = [
+interface Panel {
+  readonly id: PanelId;
+  readonly label: string;
+  readonly note: (spots: number) => string;
+  readonly icon: string;
+}
+
+const PANELS: readonly Panel[] = [
   {
     id: 'highlights',
     label: '見どころ',
@@ -20,12 +27,26 @@ const PANELS: readonly { id: PanelId; label: string; note: (spots: number) => st
     icon: 'M8 4h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Zm0 4h8M9.5 12h.01m4.99 0h.01M9 16l-2 4m8-4 2 4',
   },
   {
+    id: 'contact',
+    label: 'お問い合わせ',
+    note: () => 'ご意見・ご質問',
+    icon: 'M4 6h16a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1Zm.5.5 7.5 6 7.5-6',
+  },
+  {
     id: 'sources',
     label: 'データ',
     note: () => '出典と注意点',
     icon: 'M12 4c3.9 0 7 .9 7 2s-3.1 2-7 2-7-.9-7-2 3.1-2 7-2Zm7 2v12c0 1.1-3.1 2-7 2s-7-.9-7-2V6m14 6c0 1.1-3.1 2-7 2s-7-.9-7-2',
   },
 ];
+
+/**
+ * データは参照情報なので、広い画面では下端に離して置く。
+ * 狭い画面ではヘッダーのメニューに入れているので、ここには出さない。
+ */
+const FOOT_IDS: readonly PanelId[] = ['sources'];
+
+export const PANEL_IDS: readonly PanelId[] = PANELS.map((panel) => panel.id);
 
 export const ParkPanelNav = ({
   current,
@@ -50,6 +71,10 @@ export const ParkPanelNav = ({
           aria-current={on}
           className={`flex flex-1 flex-col items-center gap-1 py-2.5 transition duration-150 lg:w-full lg:flex-none lg:flex-row lg:items-center lg:gap-2.5 lg:rounded-xl lg:px-3 lg:py-2 lg:text-left ${
             on ? 'lg:bg-brand-600' : 'lg:hover:bg-brand-50'
+          } ${
+            FOOT_IDS.includes(panel.id)
+              ? 'hidden lg:mt-auto lg:flex lg:border-t lg:border-stone-200 lg:pt-3'
+              : ''
           }`}
         >
           <svg
