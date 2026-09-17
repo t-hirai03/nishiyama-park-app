@@ -1,195 +1,106 @@
 ---
-import { Picture } from 'astro:assets';
+import { getImage } from 'astro:assets';
 import type { ImageMetadata } from 'astro';
 import Layout from '../layouts/Layout.astro';
-import Section from '../components/Section.astro';
-import { VisitPlanner } from '../components/VisitPlanner';
+import { ParkApp, type Highlight } from '../components/ParkApp';
+import { ParkStatus } from '../components/ParkStatus';
 import { formatMonthDay } from '../lib/days';
+import { NEARBY_SPOTS } from '../lib/geo';
 import { BLOOM_WINDOWS } from '../lib/seasonality';
-import { yearStats } from '../lib/insights';
 
 const loadImages = (records: Record<string, { default: ImageMetadata }>) =>
   Object.entries(records)
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([, module]) => module.default);
 
-const tsutsujiPhotos = loadImages(
-  import.meta.glob<{ default: ImageMetadata }>('../assets/images/tsutsuji/*.webp', { eager: true })
-);
-const kouyouPhotos = loadImages(
-  import.meta.glob<{ default: ImageMetadata }>('../assets/images/kouyou/*.webp', { eager: true })
-);
-
-const heroPhoto = tsutsujiPhotos[0];
-
-const windowOf = (id: string) => BLOOM_WINDOWS.find((window) => window.id === id);
-const tsutsujiWindow = windowOf('tsutsuji');
-const kouyouWindow = windowOf('kouyou');
-
-const galleries = [
+const SOURCES = [
   {
     id: 'tsutsuji',
-    eyebrow: 'Late April – Early May',
     title: 'ツツジ',
-    lead: 'ヒラドツツジを中心に11種50,025株が斜面を埋めます。見頃ウィンドウは日別来訪者数から機械的に導きました。',
-    window: tsutsujiWindow,
-    photos: tsutsujiPhotos,
-    alt: '西山公園のツツジ',
+    lead: 'ヒラドツツジを中心に11種50,025株が斜面を埋めます。',
+    photos: loadImages(
+      import.meta.glob<{ default: ImageMetadata }>('../assets/images/tsutsuji/*.webp', {
+        eager: true,
+      })
+    ),
   },
   {
     id: 'kouyou',
-    eyebrow: 'Mid November',
     title: '紅葉',
     lead: '嚮陽庭園のモミジとドウダンツツジが色づきます。春に次ぐ年2回目の山です。',
-    window: kouyouWindow,
-    photos: kouyouPhotos,
-    alt: '西山公園 嚮陽庭園の紅葉',
+    photos: loadImages(
+      import.meta.glob<{ default: ImageMetadata }>('../assets/images/kouyou/*.webp', {
+        eager: true,
+      })
+    ),
   },
 ];
+
+/** Reactへは最適化後のURLを渡す。astro:assets はビルド時にしか使えない */
+const highlights: Highlight[] = await Promise.all(
+  SOURCES.map(async (source) => {
+    const window = BLOOM_WINDOWS.find((item) => item.id === source.id);
+    const photos = await Promise.all(
+      source.photos.map(async (photo) => {
+        const [thumb, medium, full] = await Promise.all([
+          getImage({ src: photo, width: 320, height: 240, format: 'webp', quality: 60 }),
+          getImage({ src: photo, width: 800, height: 600, format: 'webp', quality: 68 }),
+          // 縦長と横長が混在するので、拡大用は幅だけ指定して比率を保つ
+          getImage({ src: photo, width: 1200, format: 'webp', quality: 72 }),
+        ]);
+        return {
+          src: thumb.src,
+          width: 320,
+          height: 240,
+          medium: medium.src,
+          full: full.src,
+          fullWidth: Number(full.attributes.width ?? 1200),
+          fullHeight: Number(full.attributes.height ?? 900),
+        };
+      })
+    );
+    return {
+      id: source.id,
+      title: source.title,
+      lead: source.lead,
+      window: window
+        ? `${formatMonthDay(window.fromKey)}〜${formatMonthDay(window.toKey)}`
+        : null,
+      photos,
+    };
+  })
+);
 ---
 
 <Layout
-  title="いつ行く？西山公園 | 鯖江市オープンデータで訪問日を100点採点"
-  description="福井県鯖江市の西山公園に、いつ行くのが一番いいか。市が公開する日別来訪者数365日分と天気予報から、見頃・天気・気温・ゆとりを100点で採点します。オープンデータ活用アプリコンテスト2026 応募作品。"
+  title="西山公園は駅から歩ける | 鯖江市オープンデータで見る西山公園"
+  description={`福井県鯖江市の西山公園は、福井鉄道西山公園駅から徒歩1分。市が公開する座標で測った駅・バス停・周辺${NEARBY_SPOTS.length}件の分布を地図で見て、寄り道ルートを組めます。オープンデータ活用アプリコンテスト2026 応募作品。`}
 >
-  <header class="sticky top-0 z-10 border-b border-stone-200 bg-stone-50/85 backdrop-blur">
-    <div class="mx-auto flex w-[min(76rem,100%-2rem)] items-center justify-between py-3">
-      <a href="#top" class="text-sm font-bold tracking-tight text-stone-900">いつ行く？西山公園</a>
-      <nav aria-label="セクション">
-        <ul class="flex gap-5 text-sm text-stone-600">
-          <li><a href="#plan" class="transition duration-150 hover:text-emerald-700">いつ行く</a></li>
-          <li><a href="#tsutsuji" class="transition duration-150 hover:text-emerald-700">見どころ</a></li>
-          <li><a href="/data" class="transition duration-150 hover:text-emerald-700">データ解説</a></li>
-        </ul>
-      </nav>
-    </div>
-  </header>
-
-  <main id="top">
-    <section class="relative isolate overflow-hidden">
-      {
-        heroPhoto && (
-          <Picture
-            src={heroPhoto}
-            alt="斜面いっぱいに咲く西山公園のツツジ"
-            formats={['avif', 'webp']}
-            fallbackFormat="webp"
-            width={1440}
-            widths={[640, 1024, 1440]}
-            sizes="100vw"
-            quality={48}
-            loading="eager"
-            pictureAttributes={{ class: 'contents' }}
-            class="absolute inset-0 -z-10 h-full w-full object-cover"
-          />
-        )
-      }
-      <div class="absolute inset-0 -z-10 bg-gradient-to-br from-stone-950/85 via-stone-900/65 to-stone-900/30"></div>
-      <div class="mx-auto w-[min(76rem,100%-2rem)] py-20 sm:py-28">
-        <p class="text-xs font-medium tracking-[0.2em] text-emerald-300 uppercase">
-          Fukui / Sabae — Nishiyama Park
-        </p>
-        <h1 class="mt-4 text-4xl leading-tight font-bold tracking-tight text-white sm:text-6xl">
-          <span class="block">西山公園に行くなら、</span>
-          <span class="block">いつがいいか。</span>
-        </h1>
-        <p class="mt-5 max-w-2xl leading-relaxed text-stone-200">
-          鯖江市が公開する<strong class="font-semibold text-white">日別来訪者数365日分</strong>と天気予報から、
-          見頃・天気・気温・ゆとりの4項目を100点で採点します。
-          目的や同行者を変えると、同じ365日から返ってくる日が変わります。
-        </p>
-        <p class="mt-8 text-sm text-stone-300">
-          年間で最も多かったのは{yearStats.busiest.date.replace(/-/g, '/')}の
-          {yearStats.busiest.visitors.toLocaleString()}人。最も静かだったのは
-          {yearStats.quietest.date.replace(/-/g, '/')}で、推計10人未満でした。
+  <div class="flex flex-col lg:h-dvh">
+    <header
+      class="flex shrink-0 flex-wrap items-center justify-between gap-x-4 gap-y-1 border-b border-stone-200 bg-white px-4 py-2 sm:px-6 lg:h-14 lg:flex-nowrap lg:py-0"
+    >
+      <div class="flex min-w-0 items-baseline gap-2.5">
+        <p class="text-sm font-bold tracking-tight text-stone-900">西山公園</p>
+        <p class="hidden truncate text-xs text-stone-500 xl:block">
+          福井県鯖江市 — 鯖江市オープンデータで見る
         </p>
       </div>
-    </section>
 
-    <div class="mx-auto w-[min(76rem,100%-2rem)] pb-24">
-      <section id="plan" class="scroll-mt-20 py-12">
-        <p class="text-xs font-medium tracking-[0.2em] text-emerald-700 uppercase">Plan your visit</p>
-        <h2 class="mt-2 text-2xl font-bold tracking-tight text-stone-900 sm:text-3xl">
-          あなたが行くなら、いつが正解か
-        </h2>
-        <div class="mt-7">
-          <VisitPlanner client:load />
-        </div>
-      </section>
-
-      <div class="space-y-20 pt-8">
-        {
-          galleries.map((gallery) => (
-            <Section
-              id={gallery.id}
-              eyebrow={gallery.eyebrow}
-              title={gallery.title}
-              lead={gallery.lead}
-            >
-              {gallery.window && (
-                <p class="-mt-3 mb-7 text-sm leading-relaxed text-stone-500">
-                  導出した見頃ウィンドウ: {formatMonthDay(gallery.window.fromKey)}〜
-                  {formatMonthDay(gallery.window.toKey)}（{gallery.window.lengthDays}日間、ピークは
-                  {formatMonthDay(gallery.window.peakKey)}前後）
-                </p>
-              )}
-              <ul class="grid grid-cols-2 gap-3 sm:grid-cols-4">
-                {gallery.photos.map((photo, index) => (
-                  <li
-                    class={
-                      index === 0 ? 'relative col-span-2 row-span-2 overflow-hidden rounded-2xl' : ''
-                    }
-                  >
-                    <Picture
-                      src={photo}
-                      formats={['avif', 'webp']}
-                      fallbackFormat="webp"
-                      pictureAttributes={{ class: 'contents' }}
-                      alt={`${gallery.alt} ${index + 1}`}
-                      width={640}
-                      widths={[320, 640]}
-                      sizes="(min-width: 640px) 25vw, 50vw"
-                      quality={62}
-                      loading="lazy"
-                      class={
-                        index === 0
-                          ? 'absolute inset-0 h-full w-full object-cover'
-                          : 'aspect-[4/3] w-full rounded-2xl object-cover'
-                      }
-                    />
-                  </li>
-                ))}
-              </ul>
-            </Section>
-          ))
-        }
-
-        <Section
-          eyebrow="How it works"
-          title="点数の根拠はすべて実測値にある"
-          lead="100点の内訳は、見頃40点・天気30点・気温20点・ゆとり10点（標準）。配点の比率は目的や同行者で変わりますが、各項目の得点はいずれも令和7年度の実測365日から計算しています。"
-        >
-          <a
-            href="/data"
-            class="inline-flex items-center gap-2 rounded-full bg-stone-900 px-6 py-3 text-sm font-medium text-white transition duration-150 hover:bg-stone-700"
-          >
-            データ解説を見る
-            <span aria-hidden="true">→</span>
-          </a>
-        </Section>
+      <div class="order-3 -ml-2.5 w-full min-w-0 lg:order-none lg:ml-0 lg:w-auto">
+        <ParkStatus client:load />
       </div>
-    </div>
-  </main>
 
-  <footer class="border-t border-stone-200 bg-white">
-    <div class="mx-auto w-[min(76rem,100%-2rem)] py-10 text-sm text-stone-500">
-      <p>
-        オープンデータ活用アプリコンテスト2026 応募作品（主催: 鯖江市 / 企画運営: NPO法人エル・コミュニティ）
-      </p>
-      <p class="mt-2">
-        出典: 鯖江市オープンデータ / 天気予報は Open-Meteo。
-        点数は過去実績にもとづく参考値であり、実際の見頃や混雑を保証するものではありません。
-      </p>
-    </div>
-  </footer>
+      <a
+        href="https://data.city.sabae.lg.jp/"
+        target="_blank"
+        rel="noopener noreferrer"
+        class="shrink-0 text-xs text-stone-500 underline decoration-stone-300 underline-offset-4 transition duration-150 hover:text-stone-900"
+      >
+        出典: 鯖江市オープンデータ
+      </a>
+    </header>
+
+    <ParkApp highlights={highlights} client:only="react" />
+  </div>
 </Layout>
