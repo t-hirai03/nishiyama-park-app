@@ -87,6 +87,16 @@ npm run typecheck # 型チェック
 
 Node.js 22.12.0 以上が必要です。
 
+## デプロイ
+
+Cloudflare Workers の静的アセット配信で公開する（設定は `wrangler.jsonc`）。
+GitHub 連携により main へのマージで本番、PR ごとにプレビュー URL が発行される。
+
+```sh
+npm run preview:cf # Workers ランタイムでローカル確認
+npm run deploy     # 手元から直接デプロイ（初回は npx wrangler login が必要）
+```
+
 ## 利用オープンデータ
 
 鯖江市が公開する西山公園関連のデータセット7件をすべて使用しています。

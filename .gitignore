@@ -25,3 +25,6 @@ pnpm-debug.log*
 
 # raw open data originals (large images kept out of git)
 data/raw/images/
+
+# wrangler
+.wrangler/
