@@ -8,6 +8,8 @@
 @theme static {
   --font-sans: "Zen Kaku Gothic New", ui-sans-serif, system-ui, sans-serif;
 
+  --text-2xs: 0.6875rem;
+
   /* 藍。福井県は県章規程で色名に「藍」を定めているが、カラーコードの公表は確認できていない */
   --color-brand-50: #eff4f9;
   --color-brand-100: #dbe7f1;
@@ -36,6 +38,12 @@
   /* 地図上のマーカーの縁と、無効状態の点 */
   --color-marker-edge: #ffffff;
   --color-marker-off: #d6d3d1;
+  --color-marker-shadow: rgb(0 0 0 / 0.35);
+
+  /* 月別推移の系列色 */
+  --color-series-park: #15803d;
+  --color-series-zoo: #b45309;
+  --color-series-michinoeki: #0369a1;
 }
 
 html {
@@ -47,7 +55,7 @@ html {
   display: block;
   transform-origin: 50% 100%;
   transition: transform 150ms ease;
-  filter: drop-shadow(0 1px 2px rgb(0 0 0 / 0.35));
+  filter: drop-shadow(0 1px 2px var(--color-marker-shadow));
 }
 
 .leaflet-marker-icon:hover .park-pin {
@@ -55,7 +63,7 @@ html {
 }
 
 .park-pin-body {
-  fill: var(--pin-color);
+  fill: currentColor;
   stroke: var(--color-marker-edge);
   stroke-width: 1.5;
 }

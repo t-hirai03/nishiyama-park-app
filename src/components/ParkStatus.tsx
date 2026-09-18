@@ -1,16 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
-import { WeatherIcon } from './WeatherIcon';
-import {
-  DATA_AREA,
-  DATA_FISCAL_YEAR,
-  DATA_NOTE,
-  WEATHER_LABEL,
-  formatShortDate,
-  isWeekendDate,
-} from '../lib/days';
-import { fetchForecast, outlookFor, type ForecastMap } from '../lib/forecast';
+import { DATA_AREA, DATA_FISCAL_YEAR, DATA_NOTE, WEATHER_LABEL } from '../lib/days';
+import { fetchForecast, outlookFor } from '../lib/forecast';
 import { yearStats } from '../lib/insights';
 import { DEFAULT_PREFERENCES, scoreDay } from '../lib/scoring';
+import type { ForecastMap } from '../types/visitors';
+import { formatShortDate, isWeekendDate, startOfDay } from '../utils/date';
+import { LineIcon } from './ui/LineIcon';
+import { WeatherIcon } from './WeatherIcon';
 
 /** 365日の実測を4段階に切って言い換える。点数は出さない */
 const CROWD_LEVELS = [
@@ -38,7 +34,13 @@ const Skeleton = () => (
   </div>
 );
 
-const Figure = ({ label, value, note }: { label: string; value: string; note?: string }) => (
+interface FigureProps {
+  readonly label: string;
+  readonly value: string;
+  readonly note?: string;
+}
+
+const Figure = ({ label, value, note }: FigureProps) => (
   <div>
     <dt className="text-xs text-stone-500">{label}</dt>
     <dd className="mt-1 text-lg font-bold tracking-tight text-stone-900 tabular-nums">
@@ -49,10 +51,7 @@ const Figure = ({ label, value, note }: { label: string; value: string; note?: s
 );
 
 export const ParkStatus = () => {
-  const [today] = useState(() => {
-    const now = new Date();
-    return new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  });
+  const [today] = useState(() => startOfDay(new Date()));
   const [forecast, setForecast] = useState<ForecastMap | null>(null);
   const [settled, setSettled] = useState(false);
   const [open, setOpen] = useState(false);
@@ -76,7 +75,8 @@ export const ParkStatus = () => {
   useEffect(() => {
     if (!open) return;
     const onPointerDown = (event: PointerEvent) => {
-      if (!wrapper.current?.contains(event.target as Node)) setOpen(false);
+      if (event.target instanceof Node && wrapper.current?.contains(event.target)) return;
+      setOpen(false);
     };
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') setOpen(false);
@@ -122,18 +122,10 @@ export const ParkStatus = () => {
             <span className="text-xs font-normal text-stone-500">人</span>
           </span>
         </span>
-        <svg
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="1.8"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          aria-hidden="true"
+        <LineIcon
+          icon="chevronDown"
           className={`h-3.5 w-3.5 shrink-0 text-stone-400 transition duration-150 ${open ? 'rotate-180' : ''}`}
-        >
-          <path d="m6 9 6 6 6-6" />
-        </svg>
+        />
       </button>
 
       {open && (

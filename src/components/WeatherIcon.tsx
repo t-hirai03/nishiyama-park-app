@@ -1,5 +1,5 @@
 import type { ReactElement } from 'react';
-import type { WeatherCategory } from '../lib/days';
+import type { WeatherCategory } from '../types/visitors';
 
 const PATHS: Record<WeatherCategory, ReactElement> = {
   sunny: (
@@ -27,13 +27,12 @@ const PATHS: Record<WeatherCategory, ReactElement> = {
   ),
 };
 
-export const WeatherIcon = ({
-  category,
-  className = '',
-}: {
-  category: WeatherCategory;
-  className?: string;
-}) => (
+interface WeatherIconProps {
+  readonly category: WeatherCategory;
+  readonly className?: string;
+}
+
+export const WeatherIcon = ({ category, className = '' }: WeatherIconProps) => (
   <svg
     viewBox="0 0 24 24"
     fill="none"

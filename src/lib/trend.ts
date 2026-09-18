@@ -1,4 +1,6 @@
 import monthlyZoo from '../data/monthly-zoo.json';
+import type { MonthTrend } from '../types/visitors';
+import { roundedMean } from '../utils/math';
 
 /**
  * コロナ禍で臨時休園・行動制限があった年度。長期トレンドの比較から除く。
@@ -19,18 +21,6 @@ const valueAt = (monthLabel: string, index: number): number | null => {
   return typeof value === 'number' ? value : null;
 };
 
-export interface MonthTrend {
-  readonly month: string;
-  readonly early: number;
-  readonly late: number;
-  /** 前期比の変化率。0.64 なら +64% */
-  readonly change: number;
-  readonly sampleYears: number;
-}
-
-const average = (values: readonly number[]): number =>
-  values.length === 0 ? 0 : Math.round(values.reduce((sum, value) => sum + value, 0) / values.length);
-
 /** 動物園18年分から、指定した月の「前期6年平均」と「直近6年平均」を比べる */
 export const monthTrend = (monthLabel: string): MonthTrend | undefined => {
   const usable = chronologicalIndices().filter(
@@ -46,8 +36,8 @@ export const monthTrend = (monthLabel: string): MonthTrend | undefined => {
       return value === null ? [] : [value];
     });
 
-  const early = average(pick(usable.slice(0, SAMPLE_YEARS)));
-  const late = average(pick(usable.slice(-SAMPLE_YEARS)));
+  const early = roundedMean(pick(usable.slice(0, SAMPLE_YEARS)));
+  const late = roundedMean(pick(usable.slice(-SAMPLE_YEARS)));
   if (early === 0) return undefined;
 
   return {

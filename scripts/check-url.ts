@@ -9,8 +9,8 @@ import {
   isDefaultState,
   parsePlannerState,
   serializePlannerState,
-  type PlannerState,
 } from '../src/lib/url-state';
+import type { PlannerState } from '../src/types/planner';
 
 let failures = 0;
 const check = (label: string, actual: unknown, expected: unknown): void => {

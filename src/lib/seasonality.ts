@@ -1,10 +1,7 @@
-import {
-  ALL_DAYS,
-  monthDayKey,
-  monthDayOf,
-  type DayRecord,
-  type WeatherCategory,
-} from './days';
+import { ALL_DAYS, monthDayOf } from './days';
+import type { BloomWindow, DayRecord, WeatherCategory } from '../types/visitors';
+import { monthDayKey } from '../utils/date';
+import { mean } from '../utils/math';
 
 const SMOOTH_HALF_WIDTH = 5;
 const FIT_ITERATIONS = 40;
@@ -12,10 +9,13 @@ const PEAK_SEARCH_RADIUS = 18;
 const PEAK_MIN_PROMINENCE = 0.2;
 const WINDOW_THRESHOLD = 0.5;
 
-const mean = (values: readonly number[]) =>
-  values.reduce((sum, value) => sum + value, 0) / values.length;
-
 const N = ALL_DAYS.length;
+
+const monthDayAt = (index: number): number => {
+  const day = ALL_DAYS[index];
+  if (!day) throw new RangeError(`日別データの範囲外: ${index}`);
+  return monthDayOf(day);
+};
 
 // 来訪者数0の日があると乗法モデルが発散するため、丸め単位の10人を下限に置く
 const observed = ALL_DAYS.map((day) => Math.max(day.visitors, 10));
@@ -123,16 +123,6 @@ const detectPeaks = () => {
   return found;
 };
 
-export interface BloomWindow {
-  readonly id: string;
-  readonly name: string;
-  readonly peakKey: number;
-  readonly fromKey: number;
-  readonly toKey: number;
-  readonly peakVisitors: number;
-  readonly lengthDays: number;
-}
-
 const NAMED_PEAKS: readonly { readonly months: readonly number[]; readonly id: string; readonly name: string }[] = [
   { months: [3, 4], id: 'sakura', name: '桜' },
   { months: [5], id: 'tsutsuji', name: 'ツツジ' },
@@ -159,14 +149,14 @@ const buildWindow = (peakIndex: number): BloomWindow => {
   while ((seasonal[(to + 1) % N] ?? 0) >= threshold && (to - peakIndex + N) % N < N / 3) {
     to = (to + 1) % N;
   }
-  const peakKey = monthDayOf(ALL_DAYS[peakIndex] as DayRecord);
+  const peakKey = monthDayAt(peakIndex);
   const named = nameOf(peakKey);
   return {
     id: named.id,
     name: named.name,
     peakKey,
-    fromKey: monthDayOf(ALL_DAYS[from] as DayRecord),
-    toKey: monthDayOf(ALL_DAYS[to] as DayRecord),
+    fromKey: monthDayAt(from),
+    toKey: monthDayAt(to),
     peakVisitors: Math.round(seasonal[peakIndex] ?? 0),
     lengthDays: to >= from ? to - from + 1 : N - from + to + 1,
   };
@@ -200,7 +190,7 @@ const nearestPeakIndex = (index: number) =>
 export const seasonalVisitors = (date: Date) => Math.round(seasonal[indexOfDate(date)] ?? 0);
 
 const peakIndexById = new Map<string, number>(
-  peakIndices.map((index) => [nameOf(monthDayOf(ALL_DAYS[index] as DayRecord)).id, index] as const)
+  peakIndices.map((index) => [nameOf(monthDayAt(index)).id, index] as const)
 );
 
 export const bloomRatio = (date: Date, targetId?: string): number => {
@@ -226,7 +216,7 @@ export const bloomWindowOf = (date: Date): BloomWindow | undefined => {
 
 export const nearestBloomWindow = (date: Date): BloomWindow | undefined => {
   const index = nearestPeakIndex(indexOfDate(date));
-  const key = monthDayOf(ALL_DAYS[index] as DayRecord);
+  const key = monthDayAt(index);
   return BLOOM_WINDOWS.find((window) => window.peakKey === key);
 };
 

@@ -1,10 +1,11 @@
-import type { Genre } from '../lib/geo';
+import type { Genre } from '../types/geo';
+import type { GlyphId } from '../types/ui';
 
 /**
  * 種類のアイコン。24x24で描いて、地図のピンの頭と一覧の行の両方で使う。
  * 小さく出るので線は太めにし、形の数を絞っている。
  */
-export const PIN_GLYPH = {
+export const PIN_GLYPH: Record<GlyphId, string> = {
   see: '<path d="M1.5 12S5.5 6 12 6s10.5 6 10.5 6-4 6-10.5 6S1.5 12 1.5 12Z"/><circle cx="12" cy="12" r="2.6" fill="currentColor" stroke="none"/>',
   eat: '<path d="M8.5 3v18M5.5 3v5.5a3 3 0 0 0 6 0V3M16.5 21V13m0 0c-1.8 0-2.8-1.6-2.8-4.5S14.7 3 16.5 3s2.8 2.6 2.8 5.5-1 4.5-2.8 4.5Z"/>',
   buy: '<path d="M5.5 8h13l-1.2 12.5H6.7L5.5 8Zm3.6 0V5.8a2.9 2.9 0 0 1 5.8 0V8"/>',
@@ -16,9 +17,7 @@ export const PIN_GLYPH = {
   here: '<path d="M12 2.5v3m0 13v3M2.5 12h3m13 0h3M12 7.5a4.5 4.5 0 1 0 0 9 4.5 4.5 0 0 0 0-9Z"/>',
   toilet:
     '<path d="M12 4.5v15"/><path d="M7.5 8.5a1.6 1.6 0 1 0 0-3.2 1.6 1.6 0 0 0 0 3.2Zm0 0c-1.3 0-2 .9-2 2v4h1.2v5h1.6v-5H9.5v-4c0-1.1-.7-2-2-2Z"/><path d="M16.5 8.5a1.6 1.6 0 1 0 0-3.2 1.6 1.6 0 0 0 0 3.2Zm0 0c-1.4 0-2.1 1-2.3 2.2l-.7 4.3h1.4v4.5h3.2V15h1.4l-.7-4.3c-.2-1.2-.9-2.2-2.3-2.2Z"/>',
-} as const;
-
-export type GlyphId = keyof typeof PIN_GLYPH;
+};
 
 export const GENRE_GLYPH: Record<Genre, GlyphId> = {
   観る: 'see',
@@ -26,30 +25,3 @@ export const GENRE_GLYPH: Record<Genre, GlyphId> = {
   買う: 'buy',
   遊ぶ: 'play',
 };
-
-/**
- * 一覧の行に出すアイコン。グリフは自分で書いた定数なので、
- * dangerouslySetInnerHTML でもSVGの断片をそのまま流し込める。
- */
-export const SpotIcon = ({
-  glyph,
-  colorVar,
-  className = 'h-5 w-5',
-}: {
-  glyph: GlyphId;
-  colorVar: string;
-  className?: string;
-}) => (
-  <svg
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke={`var(${colorVar})`}
-    strokeWidth="1.8"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-    color={`var(${colorVar})`}
-    aria-hidden="true"
-    className={className}
-    dangerouslySetInnerHTML={{ __html: PIN_GLYPH[glyph] }}
-  />
-);
