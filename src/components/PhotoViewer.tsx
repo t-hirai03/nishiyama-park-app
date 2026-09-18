@@ -1,7 +1,9 @@
 import { useEffect, useRef } from 'react';
-import type { HighlightPhoto } from './ParkApp';
+import type { IconId } from '../constants/icons';
+import type { HighlightPhoto } from '../types/ui';
+import { LineIcon } from './ui/LineIcon';
 
-interface Props {
+interface PhotoViewerProps {
   readonly photos: readonly HighlightPhoto[];
   readonly index: number;
   readonly caption: string;
@@ -9,45 +11,25 @@ interface Props {
   readonly onClose: () => void;
 }
 
-const ARROW = {
-  prev: 'm15 6-6 6 6 6',
-  next: 'm9 6 6 6-6 6',
-  close: 'M6 6l12 12M18 6 6 18',
-} as const;
+interface IconButtonProps {
+  readonly icon: IconId;
+  readonly label: string;
+  readonly onClick: () => void;
+  readonly className?: string;
+}
 
-const IconButton = ({
-  path,
-  label,
-  onClick,
-  className = '',
-}: {
-  path: string;
-  label: string;
-  onClick: () => void;
-  className?: string;
-}) => (
+const IconButton = ({ icon, label, onClick, className = '' }: IconButtonProps) => (
   <button
     type="button"
     onClick={onClick}
     aria-label={label}
     className={`flex h-11 w-11 items-center justify-center rounded-full bg-white/90 text-stone-700 shadow-sm transition duration-150 hover:bg-white ${className}`}
   >
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.8"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-      className="h-5 w-5"
-    >
-      <path d={path} />
-    </svg>
+    <LineIcon icon={icon} />
   </button>
 );
 
-export const PhotoViewer = ({ photos, index, caption, onMove, onClose }: Props) => {
+export const PhotoViewer = ({ photos, index, caption, onMove, onClose }: PhotoViewerProps) => {
   const closeButton = useRef<HTMLDivElement>(null);
   const photo = photos[index];
 
@@ -83,7 +65,7 @@ export const PhotoViewer = ({ photos, index, caption, onMove, onClose }: Props) 
             {index + 1} / {photos.length}
           </span>
         </p>
-        <IconButton path={ARROW.close} label="閉じる" onClick={onClose} />
+        <IconButton icon="close" label="閉じる" onClick={onClose} />
       </div>
 
       {/* 狭い画面では左右ボタンを横に並べると画像が潰れるので、画像の上に重ねる */}
@@ -99,13 +81,13 @@ export const PhotoViewer = ({ photos, index, caption, onMove, onClose }: Props) 
         {photos.length > 1 && (
           <>
             <IconButton
-              path={ARROW.prev}
+              icon="chevronLeft"
               label="前の写真"
               onClick={() => onMove((index - 1 + photos.length) % photos.length)}
               className="absolute top-1/2 left-1 -translate-y-1/2 sm:left-3"
             />
             <IconButton
-              path={ARROW.next}
+              icon="chevronRight"
               label="次の写真"
               onClick={() => onMove((index + 1) % photos.length)}
               className="absolute top-1/2 right-1 -translate-y-1/2 sm:right-3"

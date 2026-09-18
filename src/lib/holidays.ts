@@ -1,4 +1,4 @@
-import { toIsoDate } from './days';
+import { toIsoDate } from '../utils/date';
 
 const nthMonday = (year: number, month: number, nth: number) => {
   const first = new Date(year, month - 1, 1);

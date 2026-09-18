@@ -1,24 +1,17 @@
-import { ALL_DAYS, WEATHER_LABEL, type DayRecord, type WeatherCategory } from './days';
-
-const WEATHER_CATEGORIES: readonly WeatherCategory[] = ['sunny', 'cloudy', 'rain', 'snow'];
-
-const average = (values: readonly number[]) =>
-  values.length === 0 ? 0 : values.reduce((sum, value) => sum + value, 0) / values.length;
-
-const roundedAverage = (values: readonly number[]) => Math.round(average(values));
-
-export interface WeatherStat {
-  readonly category: WeatherCategory;
-  readonly label: string;
-  readonly holiday: { readonly average: number; readonly days: number };
-  readonly weekday: { readonly average: number; readonly days: number };
-}
+import { ALL_DAYS, WEATHER_CATEGORIES, WEATHER_LABEL, monthOf } from './days';
+import type {
+  MonthlyNormal,
+  TemperatureBand,
+  WeatherCategory,
+  WeatherStat,
+} from '../types/visitors';
+import { roundedMean } from '../utils/math';
 
 const cellOf = (category: WeatherCategory, isWeekend: boolean) => {
   const days = ALL_DAYS.filter(
     (day) => day.weatherCategory === category && day.isWeekend === isWeekend
   );
-  return { average: roundedAverage(days.map((day) => day.visitors)), days: days.length };
+  return { average: roundedMean(days.map((day) => day.visitors)), days: days.length };
 };
 
 export const WEATHER_STATS: readonly WeatherStat[] = WEATHER_CATEGORIES.map((category) => ({
@@ -40,15 +33,6 @@ export const weatherRatio = (category: WeatherCategory, isWeekend: boolean): num
   return isWeekend ? stat.holiday.average / bestHoliday : stat.weekday.average / bestWeekday;
 };
 
-export interface TemperatureBand {
-  readonly label: string;
-  readonly from: number;
-  readonly to: number;
-  readonly midpoint: number;
-  readonly average: number;
-  readonly days: number;
-}
-
 const BAND_EDGES = [-Infinity, 5, 10, 15, 20, 25, 30, Infinity];
 
 const bandLabel = (from: number, to: number) => {
@@ -68,7 +52,7 @@ export const TEMPERATURE_BANDS: readonly TemperatureBand[] = BAND_EDGES.slice(0,
       from,
       to,
       midpoint: (finiteFrom + finiteTo) / 2,
-      average: roundedAverage(days.map((day) => day.visitors)),
+      average: roundedMean(days.map((day) => day.visitors)),
       days: days.length,
     };
   }
@@ -96,41 +80,33 @@ export const temperatureRatio = (tempMax: number): number => {
 export const temperatureBandOf = (tempMax: number): TemperatureBand | undefined =>
   TEMPERATURE_BANDS.find((band) => tempMax >= band.from && tempMax < band.to);
 
-export interface MonthlyNormal {
-  readonly month: number;
-  readonly averageVisitors: number;
-  readonly tempMax: number;
-  readonly tempMin: number;
-  readonly weatherShare: Record<WeatherCategory, number>;
-  readonly dominantWeather: WeatherCategory;
-}
-
-const monthOf = (day: DayRecord) => Number(day.date.slice(5, 7));
-
 export const MONTHLY_NORMALS: readonly MonthlyNormal[] = Array.from({ length: 12 }, (_, index) => {
   const month = index + 1;
   const days = ALL_DAYS.filter((day) => monthOf(day) === month);
-  const shareEntries = WEATHER_CATEGORIES.map(
-    (category) =>
-      [
-        category,
-        days.filter((day) => day.weatherCategory === category).length / Math.max(days.length, 1),
-      ] as const
-  );
-  const weatherShare = Object.fromEntries(shareEntries) as Record<WeatherCategory, number>;
-  const dominant = [...shareEntries].sort((a, b) => b[1] - a[1])[0];
+  const shareOf = (category: WeatherCategory) =>
+    days.filter((day) => day.weatherCategory === category).length / Math.max(days.length, 1);
+  const weatherShare: Record<WeatherCategory, number> = {
+    sunny: shareOf('sunny'),
+    cloudy: shareOf('cloudy'),
+    rain: shareOf('rain'),
+    snow: shareOf('snow'),
+  };
+  const dominant = [...WEATHER_CATEGORIES].sort((a, b) => weatherShare[b] - weatherShare[a])[0];
   return {
     month,
-    averageVisitors: roundedAverage(days.map((day) => day.visitors)),
-    tempMax: roundedAverage(days.map((day) => day.tempMax)),
-    tempMin: roundedAverage(days.map((day) => day.tempMin)),
+    averageVisitors: roundedMean(days.map((day) => day.visitors)),
+    tempMax: roundedMean(days.map((day) => day.tempMax)),
+    tempMin: roundedMean(days.map((day) => day.tempMin)),
     weatherShare,
-    dominantWeather: dominant?.[0] ?? 'cloudy',
+    dominantWeather: dominant ?? 'cloudy',
   };
 });
 
-export const normalOf = (month: number): MonthlyNormal =>
-  MONTHLY_NORMALS[month - 1] ?? (MONTHLY_NORMALS[0] as MonthlyNormal);
+export const normalOf = (month: number): MonthlyNormal => {
+  const normal = MONTHLY_NORMALS[month - 1];
+  if (!normal) throw new RangeError(`month は 1〜12: ${month}`);
+  return normal;
+};
 
 export const expectedWeatherRatio = (month: number, isWeekend: boolean): number => {
   const normal = normalOf(month);

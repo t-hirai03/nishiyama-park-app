@@ -1,23 +1,13 @@
-import { PERIODS, type PeriodId } from './period';
-import {
-  COMPANIONS,
-  DEFAULT_PREFERENCES,
-  PURPOSES,
-  TRANSPORTS,
-  type CompanionId,
-  type Preferences,
-  type PurposeId,
-  type TransportId,
-} from './scoring';
-
-/**
- * 条件をURLに持たせる。サーバー保存はしない。
- * これがないと、出した答えを他人に送れず、リロードで消える。
- */
-export interface PlannerState {
-  readonly preferences: Preferences;
-  readonly period: PeriodId;
-}
+import { PERIODS } from './period';
+import { COMPANIONS, DEFAULT_PREFERENCES, PURPOSES, TRANSPORTS } from './scoring';
+import type { Option } from '../types/common';
+import type {
+  CompanionId,
+  PeriodId,
+  PlannerState,
+  PurposeId,
+  TransportId,
+} from '../types/planner';
 
 export const DEFAULT_PERIOD: PeriodId = 'week';
 
@@ -35,7 +25,7 @@ const PARAM = {
 } as const;
 
 const idOf = <T extends string>(
-  options: readonly { readonly id: T }[],
+  options: readonly Option<T>[],
   value: string | null,
   fallback: T
 ): T => options.find((option) => option.id === value)?.id ?? fallback;
@@ -47,6 +37,7 @@ const priorityOf = (value: string | null, fallback: number): number => {
   return Math.min(Math.max(Math.round(parsed / 5) * 5, 0), 100);
 };
 
+/** 条件をURLに持たせる。サーバー保存はしないので、これがないと答えを他人に送れない */
 export const parsePlannerState = (search: string): PlannerState => {
   const params = new URLSearchParams(search);
   const base = DEFAULT_STATE;

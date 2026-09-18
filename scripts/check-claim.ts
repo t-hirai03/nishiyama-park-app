@@ -5,7 +5,8 @@
  */
 import { buildClaim } from '../src/lib/claim';
 import { SEASON_FACTS, SEASONS } from '../src/lib/season';
-import { DEFAULT_PREFERENCES, type Preferences } from '../src/lib/scoring';
+import { DEFAULT_PREFERENCES } from '../src/lib/scoring';
+import type { Preferences } from '../src/types/planner';
 import { KOUYOU_TREND, TSUTSUJI_TREND, formatChange } from '../src/lib/trend';
 
 const BASE_DATE = new Date(2026, 8, 6);

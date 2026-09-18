@@ -1,21 +1,17 @@
 import { findLongWeekend } from './holidays';
+import type { Option } from '../types/common';
+import type { PeriodId } from '../types/planner';
+import { addDays } from '../utils/date';
 
-export const PERIODS = [
+export const PERIODS: readonly Option<PeriodId>[] = [
   { id: 'week', label: '今週' },
   { id: 'month', label: '今月' },
   { id: 'long-weekend', label: '次の3連休' },
   { id: 'year', label: '通年' },
-] as const;
-export type PeriodId = (typeof PERIODS)[number]['id'];
+];
 
 const MIN_DAYS = 7;
 const YEAR_DAYS = 365;
-
-const addDays = (base: Date, days: number) => {
-  const next = new Date(base.getFullYear(), base.getMonth(), base.getDate());
-  next.setDate(next.getDate() + days);
-  return next;
-};
 
 const sequence = (from: Date, count: number): readonly Date[] =>
   Array.from({ length: count }, (_, index) => addDays(from, index));

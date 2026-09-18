@@ -1,27 +1,8 @@
-import { formatDateLabel } from './days';
-import type { ForecastMap } from './forecast';
-import { BUSIEST_DAY, rankSeasons, type SeasonScore, type SeasonId } from './season';
-import type { DayScore, Preferences } from './scoring';
+import { BUSIEST_DAY, rankSeasons } from './season';
 import { KOUYOU_TREND, TSUTSUJI_TREND, formatChange } from './trend';
-
-/**
- * ページの主張。「結論 + 数字 + 比較対象」の3要素で組み立てる。
- * 条件の組み合わせは目的4 x 同行者3 x 交通3 x 期間4 x スライダーで数百通りあるため、
- * 文面を列挙せず要素を合成する。
- */
-export interface Claim {
-  readonly seasons: readonly SeasonScore[];
-  readonly season: SeasonScore | undefined;
-  readonly day: DayScore | undefined;
-  /** 結論。ページ最上部の一文 */
-  readonly headline: string;
-  /** 大きく出す数字 */
-  readonly figure: string;
-  /** 数字が何を意味するか */
-  readonly figureNote: string;
-  /** なぜこの季節なのか */
-  readonly reason: string;
-}
+import type { Claim, Preferences, SeasonId, SeasonScore } from '../types/planner';
+import type { ForecastMap } from '../types/visitors';
+import { formatDateLabel } from '../utils/date';
 
 /** 年間最多の日と比べて何分の1か。1未満なら比較を出さない */
 const fractionOfBusiest = (visitors: number): number | undefined => {
@@ -53,6 +34,10 @@ const REASON: Record<SeasonId, (season: SeasonScore) => string> = {
     `快適日は${season.facts.totalDays}日中${season.facts.comfortableDays}日。人出の中央値は${season.facts.medianVisitors.toLocaleString()}人で、四季で最も静かです。3月に入ると桜へ向けて動き出します。`,
 };
 
+/**
+ * ページの主張を「結論 + 数字 + 比較対象」の3要素で組み立てる。
+ * 条件の組み合わせは数百通りあるため、文面を列挙せず要素を合成する。
+ */
 export const buildClaim = (
   baseDate: Date,
   preferences: Preferences,

@@ -1,35 +1,37 @@
-import { isWeekendDate, type WeatherCategory } from './days';
 import { expectedWeatherRatio, temperatureRatio, weatherRatio } from './climate';
 import { bloomRatio, expectedVisitors, visitorPercentile } from './seasonality';
+import type { Option } from '../types/common';
+import type {
+  CompanionId,
+  DayOutlook,
+  DayScore,
+  Preferences,
+  PurposeId,
+  ScoreItem,
+  ScoreKey,
+  TransportId,
+  Weights,
+} from '../types/planner';
+import { isWeekendDate } from '../utils/date';
 
-export const PURPOSES = [
+export const PURPOSES: readonly Option<PurposeId>[] = [
   { id: 'none', label: '特になし' },
   { id: 'tsutsuji', label: 'ツツジ' },
   { id: 'kouyou', label: '紅葉' },
   { id: 'lesser-panda', label: 'レッサーパンダ' },
-] as const;
-export type PurposeId = (typeof PURPOSES)[number]['id'];
+];
 
-export const TRANSPORTS = [
+export const TRANSPORTS: readonly Option<TransportId>[] = [
   { id: 'local', label: '福井県内から' },
   { id: 'train', label: '県外・鉄道' },
   { id: 'car', label: '県外・自動車' },
-] as const;
-export type TransportId = (typeof TRANSPORTS)[number]['id'];
+];
 
-export const COMPANIONS = [
+export const COMPANIONS: readonly Option<CompanionId>[] = [
   { id: 'adults', label: '大人のみ' },
   { id: 'kids', label: '子ども連れ' },
   { id: 'seniors', label: '高齢者連れ' },
-] as const;
-export type CompanionId = (typeof COMPANIONS)[number]['id'];
-
-export interface Preferences {
-  readonly purpose: PurposeId;
-  readonly transport: TransportId;
-  readonly companion: CompanionId;
-  readonly priority: number;
-}
+];
 
 export const DEFAULT_PREFERENCES: Preferences = {
   purpose: 'none',
@@ -37,13 +39,6 @@ export const DEFAULT_PREFERENCES: Preferences = {
   companion: 'adults',
   priority: 50,
 };
-
-export interface Weights {
-  readonly bloom: number;
-  readonly weather: number;
-  readonly temperature: number;
-  readonly room: number;
-}
 
 const PURPOSE_WEIGHTS: Record<PurposeId, Weights> = {
   none: { bloom: 40, weather: 30, temperature: 20, room: 10 },
@@ -110,18 +105,7 @@ const BLOOM_TARGET: Record<PurposeId, string | undefined> = {
   'lesser-panda': undefined,
 };
 
-export type OutlookSource = 'forecast' | 'normal';
-
-export interface DayOutlook {
-  readonly date: Date;
-  readonly source: OutlookSource;
-  readonly category: WeatherCategory;
-  readonly tempMax: number;
-  readonly tempMin: number;
-}
-
-export const SCORE_KEYS = ['bloom', 'weather', 'temperature', 'room'] as const;
-export type ScoreKey = (typeof SCORE_KEYS)[number];
+export const SCORE_KEYS: readonly ScoreKey[] = ['bloom', 'weather', 'temperature', 'room'];
 
 export const SCORE_LABEL: Record<ScoreKey, string> = {
   bloom: '見頃',
@@ -129,23 +113,6 @@ export const SCORE_LABEL: Record<ScoreKey, string> = {
   temperature: '気温',
   room: 'ゆとり',
 };
-
-export interface ScoreItem {
-  readonly key: ScoreKey;
-  readonly label: string;
-  readonly weight: number;
-  readonly ratio: number;
-  readonly points: number;
-}
-
-export interface DayScore {
-  readonly outlook: DayOutlook;
-  readonly total: number;
-  readonly items: readonly ScoreItem[];
-  readonly expectedVisitors: number;
-  readonly roomPercentile: number;
-  readonly isWeekend: boolean;
-}
 
 const itemOf = (key: ScoreKey, weight: number, ratio: number): ScoreItem => ({
   key,
@@ -191,8 +158,8 @@ export const rankDays = (
     .map((outlook) => scoreDay(outlook, preferences))
     .sort((a, b) => b.total - a.total || a.outlook.date.getTime() - b.outlook.date.getTime());
 
-export const dominantItem = (score: DayScore): ScoreItem =>
-  [...score.items].sort((a, b) => b.weight - a.weight)[0] as ScoreItem;
+export const dominantItem = (score: DayScore): ScoreItem | undefined =>
+  [...score.items].sort((a, b) => b.weight - a.weight)[0];
 
 export const weakestItem = (score: DayScore): ScoreItem | undefined =>
   [...score.items]
