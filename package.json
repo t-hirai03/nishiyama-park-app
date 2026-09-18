@@ -15,7 +15,9 @@
     "optimize:images": "node scripts/optimize-images.mjs",
     "typecheck": "tsc --noEmit",
     "check:claim": "esbuild scripts/check-claim.ts --bundle --platform=node --format=esm --loader:.json=json --outfile=node_modules/.cache/check-claim.mjs --log-level=error && node node_modules/.cache/check-claim.mjs",
-    "check:url": "esbuild scripts/check-url.ts --bundle --platform=node --format=esm --loader:.json=json --outfile=node_modules/.cache/check-url.mjs --log-level=error && node node_modules/.cache/check-url.mjs"
+    "check:url": "esbuild scripts/check-url.ts --bundle --platform=node --format=esm --loader:.json=json --outfile=node_modules/.cache/check-url.mjs --log-level=error && node node_modules/.cache/check-url.mjs",
+    "deploy": "astro build && wrangler deploy",
+    "preview:cf": "astro build && wrangler dev"
   },
   "dependencies": {
     "@astrojs/react": "^6.0.4",
@@ -30,9 +32,9 @@
     "tailwindcss": "^4.3.3"
   },
   "devDependencies": {
-    "@astrojs/check": "^0.9.10",
     "sharp": "^0.35.3",
     "typescript": "^7.0.2",
+    "wrangler": "^4.134.0",
     "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz"
   }
 }
