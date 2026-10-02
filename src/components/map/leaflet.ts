@@ -1,6 +1,6 @@
 import L from 'leaflet';
 import { PIN_GLYPH } from '../../constants/glyphs';
-import { directionsUrlTo, placeSearchUrl } from '../../lib/geo';
+import { PARK, directionsUrlBetween, directionsUrlTo, placeSearchUrl } from '../../lib/geo';
 import type { Placed, Point } from '../../types/geo';
 import type { BaseMapId, GlyphId } from '../../types/ui';
 
@@ -33,17 +33,19 @@ export const tileUrl = (preset: BaseMap): string =>
 
 export const toLatLng = (point: Point): L.LatLngTuple => [point.lat, point.lon];
 
+const popupLink = (href: string, label: string): string => `
+  <a href="${href}" target="_blank" rel="noopener noreferrer"
+     class="mt-1 block text-xs font-medium text-brand-700 underline underline-offset-4">
+    ${label} ↗
+  </a>`;
+
+/** 公園そのもののピンは距離0なので、公園からの道順を出さない */
 export const popupHtml = (point: Placed, detail: string, address = ''): string => `
   <p class="text-sm font-bold text-stone-900">${point.name}</p>
-  <p class="mt-0.5 text-xs text-stone-500">${detail}</p>
-  <a href="${directionsUrlTo(point)}" target="_blank" rel="noopener noreferrer"
-     class="mt-2 block text-xs font-medium text-brand-700 underline underline-offset-4">
-    Googleマップで経路を見る ↗
-  </a>
-  <a href="${placeSearchUrl(point.name, address)}" target="_blank" rel="noopener noreferrer"
-     class="mt-1 block text-xs font-medium text-brand-700 underline underline-offset-4">
-    営業時間や口コミを見る ↗
-  </a>`;
+  <p class="mt-0.5 mb-2 text-xs text-stone-500">${detail}</p>
+  ${point.distanceM > 0 ? popupLink(directionsUrlBetween(PARK, point, 'walking'), '公園から歩く道順') : ''}
+  ${popupLink(directionsUrlTo(point), '現在地からの経路')}
+  ${popupLink(placeSearchUrl(point.name, address), '営業時間や口コミを見る')}`;
 
 /** 頭の円の中心が (14,13)、先端が (14,35) の水滴形 */
 const PIN_SHAPE = 'M14 1c-6.6 0-12 5.4-12 12 0 8.6 12 22 12 22s12-13.4 12-22c0-6.6-5.4-12-12-12Z';
