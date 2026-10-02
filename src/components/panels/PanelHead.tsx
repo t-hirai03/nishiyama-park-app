@@ -15,7 +15,7 @@ export const PanelHead = ({ title, lead, onClose }: PanelHeadProps) => (
         onClick={onClose}
         aria-label="閉じて地図を見る"
         title="閉じて地図を見る"
-        className="-mt-1.5 -mr-1.5 shrink-0 rounded-full p-2 text-stone-400 transition duration-150 hover:bg-brand-50 hover:text-stone-900"
+        className="-mt-1.5 -mr-1.5 shrink-0 rounded-full p-2 text-stone-500 transition duration-150 hover:bg-brand-50 hover:text-stone-900"
       >
         <LineIcon icon="close" className="h-4 w-4" />
       </button>

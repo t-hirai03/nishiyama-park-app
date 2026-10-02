@@ -2,10 +2,11 @@ import { useState } from 'react';
 import { LAYER_DOT_OFF_CLASS } from '../../constants/colors';
 import type { IconId } from '../../constants/icons';
 import type { BaseMapId, LayerId, MapControlId } from '../../types/ui';
+import { sameSet } from '../../utils/set';
 import { LineIcon } from '../ui/LineIcon';
 import { ToggleChip } from '../ui/ToggleChip';
 import { BASE_MAPS } from './leaflet';
-import { LAYERS } from './layers';
+import { DEFAULT_LAYER_IDS, LAYERS } from './layers';
 
 const CONTROLS: readonly { readonly id: MapControlId; readonly label: string; readonly icon: IconId }[] = [
   { id: 'base', label: '地図の種類', icon: 'layers' },
@@ -42,7 +43,7 @@ export const MapControls = ({ baseMap, onBaseMap, active, onToggleLayer }: MapCo
             }`}
           >
             <LineIcon icon={control.icon} strokeWidth={1.6} />
-            {control.id === 'layers' && active.size < LAYERS.length && (
+            {control.id === 'layers' && !sameSet(active, DEFAULT_LAYER_IDS) && (
               <span className="absolute -top-0.5 -right-0.5 h-2.5 w-2.5 rounded-full bg-brand-600 ring-2 ring-white" />
             )}
           </button>

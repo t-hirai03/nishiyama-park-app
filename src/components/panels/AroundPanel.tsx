@@ -53,7 +53,7 @@ const SpotRow = ({ spot, onFocus }: SpotRowProps) => {
         )}
         <span className="min-w-0">
           <span className="block truncate text-sm font-bold text-stone-900">{spot.name}</span>
-          <span className="mt-0.5 block truncate text-xs text-stone-400">
+          <span className="mt-0.5 block truncate text-xs text-stone-500">
             {spot.category}・徒歩{spot.walkMinutes}分（{spot.distanceM}m）
           </span>
         </span>
@@ -61,7 +61,7 @@ const SpotRow = ({ spot, onFocus }: SpotRowProps) => {
       {spot.homepage && (
         <ExternalLink
           href={spot.homepage}
-          className="shrink-0 rounded-full p-1.5 text-stone-400 transition duration-150 hover:bg-white hover:text-brand-700"
+          className="shrink-0 rounded-full p-1.5 text-stone-500 transition duration-150 hover:bg-white hover:text-brand-700"
           label={`${spot.name}のサイトを開く`}
           title="サイトを開く"
         >
@@ -107,7 +107,7 @@ export const AroundPanel = ({
     <>
       <PanelHead
         title="公園を出てから、どこへ寄れるか"
-        lead={`鯖江市の観光データから半径900m以内のスポット${NEARBY_SPOTS.length}件。名前を押すと地図が寄り、ピンのポップアップから経路や店舗情報に飛べます。名前順は、データに読みが無いため漢字の名前は読み順になりません。`}
+        lead={`鯖江市の観光データから半径900m以内のスポット${NEARBY_SPOTS.length}件。名前を押すと地図が寄り、ピンのポップアップから経路や店舗情報に飛べます。`}
         onClose={onClose}
       />
 
@@ -139,22 +139,27 @@ export const AroundPanel = ({
           ))}
         </div>
       </div>
-      <ul className="mt-1">
-        {visibleSpots.map((spot) => (
-          <SpotRow key={spotKey(spot)} spot={spot} onFocus={() => onFocus(spot)} />
-        ))}
-      </ul>
-      {visibleSpots.length === 0 && (
-        <p className="mt-4 text-xs text-stone-500">
-          ジャンルがすべて外れています。上のチップから選び直してください。
+      <div className="lg:-mx-2 lg:mt-1 lg:min-h-0 lg:flex-1 lg:overflow-y-auto lg:overscroll-contain lg:px-2 lg:scroll-quiet">
+        <ul className="mt-1 lg:my-2">
+          {visibleSpots.map((spot) => (
+            <SpotRow key={spotKey(spot)} spot={spot} onFocus={() => onFocus(spot)} />
+          ))}
+        </ul>
+        {visibleSpots.length === 0 && (
+          <p className="mt-4 text-xs text-stone-500">
+            ジャンルがすべて外れています。上のチップから選び直してください。
+          </p>
+        )}
+      </div>
+      <div className="shrink-0">
+        <p className="mt-4 text-xs leading-relaxed text-stone-500 lg:mt-2">
+          右上のアイコンはデータセットに収録されたURLへのリンクです（
+          {LINKED_SPOTS}/{NEARBY_SPOTS.length}
+          件）。収録時点のURLなので、現在は繋がらない場合があります。
+          営業時間や口コミは、ピンを押して出るGoogleマップのリンクから確認できます。
         </p>
-      )}
-      <p className="mt-4 text-xs leading-relaxed text-stone-400">
-        右上のアイコンはデータセットに収録されたURLへのリンクです（{LINKED_SPOTS}/
-        {NEARBY_SPOTS.length}件）。収録時点のURLなので、現在は繋がらない場合があります。
-        営業時間や口コミは、ピンを押して出るGoogleマップのリンクから確認できます。
-      </p>
-      <NextStep label="行き方を調べる" onClick={onNext} />
+        <NextStep label="行き方を調べる" onClick={onNext} />
+      </div>
     </>
   );
 };

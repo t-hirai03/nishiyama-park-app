@@ -5,6 +5,7 @@ import Layout from '../layouts/Layout.astro';
 import { ParkApp } from '../components/ParkApp';
 import { ParkStatus } from '../components/ParkStatus';
 import { ICON } from '../constants/icons';
+import { PANELS } from '../constants/panels';
 import { NEARBY_SPOTS } from '../lib/geo';
 import { BLOOM_WINDOWS } from '../lib/seasonality';
 import type { Highlight } from '../types/ui';
@@ -40,6 +41,8 @@ const CAPTIONS: Record<string, readonly string[]> = {
     '西山公園は「日本の歴史公園100選」に選ばれています。',
   ],
 };
+
+const MENU_PANELS = PANELS.filter((panel) => panel.footer);
 
 const SOURCES = [
   {
@@ -93,6 +96,7 @@ const highlights: Highlight[] = await Promise.all(
       window: window
         ? `${formatMonthDay(window.fromKey)}〜${formatMonthDay(window.toKey)}`
         : null,
+      windowKeys: window ? { from: window.fromKey, to: window.toKey } : null,
       photos,
     };
   })
@@ -153,28 +157,32 @@ const highlights: Highlight[] = await Promise.all(
           hidden
           class="absolute top-full right-0 z-1000 mt-2 w-[min(17rem,calc(100vw-2rem))] overflow-hidden rounded-2xl bg-white shadow-lg ring-1 ring-stone-200"
         >
-          <button
-            type="button"
-            data-menu-panel-open="sources"
-            class="flex w-full items-center gap-2.5 px-4 py-3 text-left transition duration-150 hover:bg-brand-50"
-          >
-            <svg
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="1.6"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              aria-hidden="true"
-              class="h-5 w-5 shrink-0 text-stone-400"
-            >
-              <path d={ICON.data} />
-            </svg>
-            <span>
-              <span class="block text-sm font-bold text-stone-900">データ</span>
-              <span class="block text-xs text-stone-500">出典と注意点</span>
-            </span>
-          </button>
+          {
+            MENU_PANELS.map((panel) => (
+              <button
+                type="button"
+                data-menu-panel-open={panel.id}
+                class="flex w-full items-center gap-2.5 px-4 py-3 text-left transition duration-150 hover:bg-brand-50"
+              >
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.6"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  aria-hidden="true"
+                  class="h-5 w-5 shrink-0 text-stone-500"
+                >
+                  <path d={ICON[panel.icon]} />
+                </svg>
+                <span>
+                  <span class="block text-sm font-bold text-stone-900">{panel.label}</span>
+                  <span class="block text-xs text-stone-500">{panel.note(NEARBY_SPOTS.length)}</span>
+                </span>
+              </button>
+            ))
+          }
 
           <div class="border-t border-stone-200 px-4 py-3">
             <p class="text-xs text-stone-500">出典</p>

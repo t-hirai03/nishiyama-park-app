@@ -1,10 +1,8 @@
 import L from 'leaflet';
-import { MAP_COLOR_VAR } from '../../constants/colors';
 import { PIN_GLYPH } from '../../constants/glyphs';
 import { directionsUrlTo, placeSearchUrl } from '../../lib/geo';
 import type { Placed, Point } from '../../types/geo';
 import type { BaseMapId, GlyphId } from '../../types/ui';
-import { cssColor } from '../../utils/css';
 
 export const GSI_ATTRIBUTION =
   '<a href="https://maps.gsi.go.jp/development/ichiran.html" target="_blank" rel="noopener noreferrer">地理院タイル</a>（国土地理院）';
@@ -32,13 +30,6 @@ export const DEFAULT_BASE_MAP: BaseMapId = 'photo';
 
 export const tileUrl = (preset: BaseMap): string =>
   `https://cyberjapandata.gsi.go.jp/xyz/${preset.url}`;
-
-export const WALK_RINGS = [
-  { meters: 400, label: '徒歩5分' },
-  { meters: 800, label: '徒歩10分' },
-] as const;
-
-export const OUTER_RING_M = 800;
 
 export const toLatLng = (point: Point): L.LatLngTuple => [point.lat, point.lon];
 
@@ -79,36 +70,3 @@ const pinIcon = (colorClass: string, glyph: GlyphId, width: number): L.DivIcon =
 
 export const pin = (point: Placed, colorClass: string, glyph: GlyphId, width: number): L.Marker =>
   L.marker(toLatLng(point), { icon: pinIcon(colorClass, glyph, width), title: point.name });
-
-/**
- * 写真タイルの上では細い線が背景に負ける。白の縁取りを下に重ねて浮かせる。
- * 破線は徒歩圏の目安に使っているので、選んだ線は実線にして役割を分ける。
- */
-export const casedLine = (path: L.LatLngTuple[], weight = 4): L.LayerGroup =>
-  L.layerGroup([
-    L.polyline(path, {
-      color: cssColor(MAP_COLOR_VAR.markerEdge),
-      weight: weight + 4,
-      opacity: 0.85,
-      lineCap: 'round',
-      lineJoin: 'round',
-    }),
-    L.polyline(path, {
-      color: cssColor(MAP_COLOR_VAR.route),
-      weight,
-      opacity: 1,
-      lineCap: 'round',
-      lineJoin: 'round',
-    }),
-  ]);
-
-export const walkRing = (center: Point, meters: number): L.Circle =>
-  L.circle(toLatLng(center), {
-    radius: meters,
-    color: cssColor(MAP_COLOR_VAR.ring),
-    weight: 3,
-    opacity: 0.85,
-    dashArray: '8 9',
-    fillColor: cssColor(MAP_COLOR_VAR.ring),
-    fillOpacity: 0.04,
-  });

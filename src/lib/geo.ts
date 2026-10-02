@@ -105,6 +105,14 @@ export const directionsUrlBetween = (
 ): string =>
   `https://www.google.com/maps/dir/?api=1&origin=${from.lat},${from.lon}&destination=${to.lat},${to.lon}&travelmode=${mode}`;
 
+/** 座標を持たない出発地（県外の駅など）は名前のままGoogleマップに解決させる */
+export const directionsUrlFromName = (
+  origin: string,
+  to: Point,
+  mode: TravelMode = 'transit'
+): string =>
+  `https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(origin)}&destination=${to.lat},${to.lon}&travelmode=${mode}`;
+
 /** 店舗情報をGoogleマップで引く。名前だけだと同名に当たるので住所を添える */
 export const placeSearchUrl = (name: string, address: string): string =>
   `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${name} ${address}`.trim())}`;

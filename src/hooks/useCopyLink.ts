@@ -2,23 +2,26 @@ import { useEffect, useRef, useState } from 'react';
 
 const FEEDBACK_MS = 1_600;
 
-/** 今のURLをコピーし、コピー済みの表示を少しのあいだ出す */
-export const useCopyLink = (): { readonly copied: boolean; readonly copy: () => void } => {
-  const [copied, setCopied] = useState(false);
+/** 渡したURLをコピーし、どれをコピーしたかを少しのあいだ覚えておく */
+export const useCopyLink = (): {
+  readonly copiedKey: string | null;
+  readonly copy: (key: string, url: string) => void;
+} => {
+  const [copiedKey, setCopiedKey] = useState<string | null>(null);
   const timer = useRef<number | undefined>(undefined);
 
   useEffect(() => () => window.clearTimeout(timer.current), []);
 
-  const copy = () => {
+  const copy = (key: string, url: string) => {
     navigator.clipboard
-      ?.writeText(window.location.href)
+      ?.writeText(url)
       .then(() => {
-        setCopied(true);
+        setCopiedKey(key);
         window.clearTimeout(timer.current);
-        timer.current = window.setTimeout(() => setCopied(false), FEEDBACK_MS);
+        timer.current = window.setTimeout(() => setCopiedKey(null), FEEDBACK_MS);
       })
-      .catch(() => setCopied(false));
+      .catch(() => setCopiedKey(null));
   };
 
-  return { copied, copy };
+  return { copiedKey, copy };
 };

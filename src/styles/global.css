@@ -50,6 +50,33 @@ html {
   scroll-behavior: smooth;
 }
 
+/* Tailwind v4 の preflight は button のカーソルを default に戻すため、押せるものはまとめて指にする */
+@layer base {
+  button:not(:disabled),
+  [role='button']:not([aria-disabled='true']),
+  [role='tab'],
+  select:not(:disabled),
+  summary,
+  input[type='radio']:not(:disabled),
+  input[type='checkbox']:not(:disabled),
+  label:has(input[type='radio'], input[type='checkbox']) {
+    cursor: pointer;
+  }
+}
+
+/* 固定の見出しと注記に挟まれた一覧。罫線で区切らず、端を薄く消して続きがあることを示す */
+@utility scroll-quiet {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-stone-300) transparent;
+  mask-image: linear-gradient(
+    to bottom,
+    transparent,
+    #000 0.75rem,
+    #000 calc(100% - 0.75rem),
+    transparent
+  );
+}
+
 /* 地図のピン。Leafletが位置決めに transform を使うので、拡大は内側の要素に掛ける */
 .park-pin {
   display: block;

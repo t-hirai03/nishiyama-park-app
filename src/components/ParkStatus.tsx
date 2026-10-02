@@ -51,7 +51,7 @@ export const ParkStatus = () => {
 
   return (
     <div className="flex max-w-full items-center gap-2.5 px-2.5 py-1.5">
-      <WeatherIcon category={outlook.category} className="h-5 w-5 shrink-0 text-stone-400" />
+      <WeatherIcon category={outlook.category} className="h-5 w-5 shrink-0 text-stone-500" />
       <span className="flex min-w-0 items-baseline gap-2 whitespace-nowrap">
         <span className="text-xs text-stone-500 tabular-nums">
           {formatShortDate(outlook.date)}
