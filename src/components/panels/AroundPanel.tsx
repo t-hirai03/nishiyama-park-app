@@ -158,7 +158,7 @@ export const AroundPanel = ({
           件）。収録時点のURLなので、現在は繋がらない場合があります。
           営業時間や口コミは、ピンを押して出るGoogleマップのリンクから確認できます。
         </p>
-        <NextStep label="行き方を調べる" onClick={onNext} />
+        <NextStep label="西山公園のアクセス情報を調べる" onClick={onNext} />
       </div>
     </>
   );
