@@ -38,13 +38,6 @@ export const LAYER_DOT_CLASS: Record<LayerId, string> = {
 
 export const LAYER_DOT_OFF_CLASS = 'bg-marker-off';
 
-/** Leaflet のベクター図形は CSS クラスでなく色の値を要求するため、変数名で渡して cssColor() で解決する */
-export const MAP_COLOR_VAR = {
-  ring: '--color-brand-600',
-  route: '--color-brand-600',
-  markerEdge: '--color-marker-edge',
-} as const;
-
 export const SERIES_COLOR_VAR = {
   park: '--color-series-park',
   zoo: '--color-series-zoo',

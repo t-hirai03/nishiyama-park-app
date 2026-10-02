@@ -5,3 +5,6 @@ export const toggled = <T>(current: ReadonlySet<T>, item: T): ReadonlySet<T> => 
   else next.add(item);
   return next;
 };
+
+export const sameSet = <T>(a: ReadonlySet<T>, b: ReadonlySet<T>): boolean =>
+  a.size === b.size && [...a].every((item) => b.has(item));

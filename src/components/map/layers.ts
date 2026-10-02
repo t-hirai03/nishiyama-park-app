@@ -14,4 +14,7 @@ export const LAYERS: readonly Layer[] = [
   { id: 'toilet', label: 'トイレ', dotClass: LAYER_DOT_CLASS.toilet },
 ];
 
-export const ALL_LAYER_IDS: ReadonlySet<LayerId> = new Set(LAYERS.map((layer) => layer.id));
+/** トイレの灰色のピンは寄り道先に紛れて読みにくいので、既定では出さない */
+export const DEFAULT_LAYER_IDS: ReadonlySet<LayerId> = new Set(
+  LAYERS.map((layer) => layer.id).filter((id) => id !== 'toilet')
+);

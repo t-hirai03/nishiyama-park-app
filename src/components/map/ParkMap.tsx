@@ -21,14 +21,10 @@ import {
   BASE_MAPS,
   DEFAULT_BASE_MAP,
   GSI_ATTRIBUTION,
-  OUTER_RING_M,
-  WALK_RINGS,
-  casedLine,
   pin,
   popupHtml,
   tileUrl,
   toLatLng,
-  walkRing,
 } from './leaflet';
 import { MapControls } from './MapControls';
 
@@ -38,14 +34,17 @@ interface ParkMapProps {
   readonly onToggleLayer: (id: LayerId) => void;
   /** 寄せたい地点。一覧の行を押したときに変わる */
   readonly focus: Placed | null;
-  /** 2地点を結ぶ直線。アクセスで出発地と目的地を選んだときに引く */
-  readonly link: { readonly from: Anchor; readonly to: Anchor } | null;
+  /** 両方が収まるように寄せる2地点。アクセスで出発地を選んだときに変わる */
+  readonly frame: { readonly from: Anchor; readonly to: Anchor } | null;
   /** パネルが地図に重なっているか。自動フィットの余白に効く */
   readonly panelOpen: boolean;
 }
 
 /** パネルは地図の左に重なるので、その幅を除いた範囲に収めないと内容が隠れる */
 const PANEL_INSET = 456;
+
+/** 半径900mの全件に合わせるとピンが団子になる。公園から徒歩5〜7分圏が画面に収まる程度に寄せる */
+const INITIAL_RADIUS_M = 550;
 const EDGE = 24;
 
 interface MarkerRegistry {
@@ -108,11 +107,10 @@ const addMarkers = (instance: L.Map, registry: MarkerRegistry): void => {
     .addTo(instance);
 };
 
-export const ParkMap = ({ active, onToggleLayer, focus, link, panelOpen }: ParkMapProps) => {
+export const ParkMap = ({ active, onToggleLayer, focus, frame, panelOpen }: ParkMapProps) => {
   const wrapper = useRef<HTMLDivElement>(null);
   const container = useRef<HTMLDivElement>(null);
   const registry = useRef<MarkerRegistry>({ layers: new Map(), markers: new Map() });
-  const linkLine = useRef<L.LayerGroup | null>(null);
   const fitted = useRef(false);
   const tiles = useRef<L.TileLayer | null>(null);
   const map = useRef<L.Map | null>(null);
@@ -140,12 +138,7 @@ export const ParkMap = ({ active, onToggleLayer, focus, link, panelOpen }: ParkM
     if (!instance || !node || fitted.current) return;
     if (node.clientWidth === 0 || node.clientHeight === 0) return;
     // L.Circle#getBounds は地図に追加済みでないと使えないため latLng#toBounds を使う
-    instance.fitBounds(
-      L.latLngBounds([...NEARBY_SPOTS.map(toLatLng), toLatLng(PARK)]).extend(
-        L.latLng(PARK.lat, PARK.lon).toBounds(OUTER_RING_M * 2)
-      ),
-      fitOptions()
-    );
+    instance.fitBounds(L.latLng(PARK.lat, PARK.lon).toBounds(INITIAL_RADIUS_M * 2), fitOptions());
     fitted.current = true;
   };
 
@@ -155,9 +148,6 @@ export const ParkMap = ({ active, onToggleLayer, focus, link, panelOpen }: ParkM
     const instance = L.map(container.current, { scrollWheelZoom: false, zoomControl: false });
     L.control.zoom({ position: 'bottomright' }).addTo(instance);
 
-    for (const { meters, label } of WALK_RINGS) {
-      walkRing(PARK, meters).bindTooltip(`${label}（${meters}m）`, { sticky: true }).addTo(instance);
-    }
     addMarkers(instance, registry.current);
 
     map.current = instance;
@@ -168,7 +158,6 @@ export const ParkMap = ({ active, onToggleLayer, focus, link, panelOpen }: ParkM
       instance.remove();
       map.current = null;
       tiles.current = null;
-      linkLine.current = null;
       layers.clear();
       markers.clear();
       fitted.current = false;
@@ -216,14 +205,9 @@ export const ParkMap = ({ active, onToggleLayer, focus, link, panelOpen }: ParkM
 
   useEffect(() => {
     const instance = map.current;
-    if (!instance) return;
-    linkLine.current?.remove();
-    linkLine.current = null;
-    if (!link) return;
-    const path = [toLatLng(link.from), toLatLng(link.to)];
-    linkLine.current = casedLine(path, 5).addTo(instance);
-    instance.fitBounds(L.latLngBounds(path), fitOptions());
-  }, [link]);
+    if (!instance || !frame) return;
+    instance.fitBounds(L.latLngBounds([toLatLng(frame.from), toLatLng(frame.to)]), fitOptions());
+  }, [frame]);
 
   /**
    * 修飾キーを押している間だけホイールで拡大縮小する。修飾キーなしのホイールは
@@ -271,7 +255,7 @@ export const ParkMap = ({ active, onToggleLayer, focus, link, panelOpen }: ParkM
 
       {!tilesReady && (
         <div className="pointer-events-none absolute inset-0 z-800 flex items-center justify-center bg-stone-100">
-          <p className="animate-pulse text-sm text-stone-400">地図を読み込んでいます</p>
+          <p className="animate-pulse text-sm text-stone-500">地図を読み込んでいます</p>
         </div>
       )}
 

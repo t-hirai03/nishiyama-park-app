@@ -2,8 +2,10 @@ import { useState, type KeyboardEvent } from 'react';
 import type { IconId } from '../../constants/icons';
 import { useCopyLink } from '../../hooks/useCopyLink';
 import type { Highlight, HighlightPhoto } from '../../types/ui';
+import { photoShareUrl } from '../../utils/share';
 import { PhotoViewer } from '../PhotoViewer';
 import { LineIcon } from '../ui/LineIcon';
+import { NextStep } from './NextStep';
 import { PanelHead } from './PanelHead';
 
 interface CardActionProps {
@@ -16,11 +18,10 @@ const CardAction = ({ label, icon, onClick }: CardActionProps) => (
   <button
     type="button"
     onClick={onClick}
-    aria-label={label}
-    title={label}
-    className="rounded-full p-2 text-stone-600 transition duration-150 hover:bg-brand-50 hover:text-brand-700"
+    className="flex items-center gap-1.5 rounded-full px-3 py-2 text-xs text-stone-600 transition duration-150 hover:bg-brand-50 hover:text-brand-700"
   >
-    <LineIcon icon={icon} />
+    <LineIcon icon={icon} className="h-4 w-4" />
+    {label}
   </button>
 );
 
@@ -29,22 +30,11 @@ interface PhotoCardProps {
   readonly alt: string;
   readonly copied: boolean;
   readonly onZoom: () => void;
-  readonly onMap: () => void;
   readonly onCopy: () => void;
 }
 
-const PhotoCard = ({ photo, alt, copied, onZoom, onMap, onCopy }: PhotoCardProps) => (
-  <li className="overflow-hidden rounded-2xl bg-white ring-1 ring-stone-200">
-    <div className="flex items-center gap-2.5 px-3.5 py-3">
-      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-brand-600">
-        <LineIcon icon="tree" className="h-4 w-4 text-white" />
-      </span>
-      <span className="min-w-0">
-        <span className="block truncate text-sm font-bold text-stone-900">西山公園</span>
-        <span className="block truncate text-xs text-stone-500">福井県鯖江市</span>
-      </span>
-    </div>
-
+const PhotoCard = ({ photo, alt, copied, onZoom, onCopy }: PhotoCardProps) => (
+  <li className="flex flex-col overflow-hidden rounded-2xl bg-white ring-1 ring-stone-200">
     <button
       type="button"
       onClick={onZoom}
@@ -61,25 +51,25 @@ const PhotoCard = ({ photo, alt, copied, onZoom, onMap, onCopy }: PhotoCardProps
       />
     </button>
 
-    <div className="flex items-center gap-1 px-2.5 pt-2.5">
-      <CardAction label="大きく見る" icon="zoomIn" onClick={onZoom} />
-      <CardAction label="地図で見る" icon="pin" onClick={onMap} />
+    {photo.caption && (
+      <p className="px-4 pt-3.5 text-sm leading-relaxed text-stone-700">{photo.caption}</p>
+    )}
+
+    <div className="mt-auto flex items-center gap-1 px-2 pt-1.5 pb-2.5">
+      <CardAction label="拡大" icon="zoomIn" onClick={onZoom} />
       <CardAction
-        label={copied ? 'コピーしました' : 'リンクをコピー'}
+        label={copied ? 'コピーしました' : 'この写真のリンク'}
         icon={copied ? 'check' : 'link'}
         onClick={onCopy}
       />
     </div>
-
-    {photo.caption && (
-      <p className="px-3.5 pt-2 pb-4 text-sm leading-relaxed text-stone-700">{photo.caption}</p>
-    )}
   </li>
 );
 
 interface HighlightsPanelProps {
   readonly highlights: readonly Highlight[];
   readonly highlight: Highlight;
+  readonly initialPhoto: number | null;
   readonly onSelect: (id: string) => void;
   readonly onMap: () => void;
   readonly onClose: () => void;
@@ -88,12 +78,15 @@ interface HighlightsPanelProps {
 export const HighlightsPanel = ({
   highlights,
   highlight,
+  initialPhoto,
   onSelect,
   onMap,
   onClose,
 }: HighlightsPanelProps) => {
-  const [viewerIndex, setViewerIndex] = useState<number | null>(null);
-  const { copied, copy } = useCopyLink();
+  const [viewerIndex, setViewerIndex] = useState<number | null>(
+    initialPhoto !== null && initialPhoto < highlight.photos.length ? initialPhoto : null
+  );
+  const { copiedKey, copy } = useCopyLink();
 
   const select = (id: string) => {
     onSelect(id);
@@ -145,7 +138,7 @@ export const HighlightsPanel = ({
             >
               <span className="text-sm font-bold">{item.title}</span>
               {item.window && (
-                <span className="text-xs font-normal text-stone-400 tabular-nums">{item.window}</span>
+                <span className="text-xs font-normal text-stone-500 tabular-nums">{item.window}</span>
               )}
             </button>
           );
@@ -166,14 +159,15 @@ export const HighlightsPanel = ({
               key={photo.card}
               photo={photo}
               alt={`${highlight.title} ${index + 1}`}
-              copied={copied}
+              copied={copiedKey === photo.card}
               onZoom={() => setViewerIndex(index)}
-              onMap={onMap}
-              onCopy={copy}
+              onCopy={() => copy(photo.card, photoShareUrl(highlight.id, index))}
             />
           ))}
         </ul>
       </div>
+
+      <NextStep label="公園の近くに何があるか見る" onClick={onMap} />
 
       {viewerIndex !== null && (
         <PhotoViewer

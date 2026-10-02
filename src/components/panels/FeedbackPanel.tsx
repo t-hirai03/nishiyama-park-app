@@ -2,7 +2,8 @@ import { useId, useState, type FormEvent, type ReactNode } from 'react';
 import { HOME_PREFECTURE, PREFECTURES } from '../../constants/prefectures';
 import { topAreasInFukui } from '../../lib/insights';
 import type { Option } from '../../types/common';
-import type { FeedbackAnswer, VisitExperience } from '../../types/ui';
+import type { FeedbackAnswer, Gender, VisitExperience } from '../../types/ui';
+import { toIsoDate } from '../../utils/date';
 import { isOneOf } from '../../utils/guards';
 
 const VISITS: readonly Option<VisitExperience>[] = [
@@ -11,6 +12,31 @@ const VISITS: readonly Option<VisitExperience>[] = [
 ];
 
 const VISIT_IDS: readonly VisitExperience[] = VISITS.map((visit) => visit.id);
+
+const GENDERS: readonly Option<Gender>[] = [
+  { id: 'female', label: '女性' },
+  { id: 'male', label: '男性' },
+  { id: 'other', label: 'その他' },
+  { id: 'no-answer', label: '回答しない' },
+];
+
+const GENDER_IDS: readonly Gender[] = GENDERS.map((gender) => gender.id);
+
+const ageGroupOf = (birthday: FormDataEntryValue | null, today: Date): number | null => {
+  if (typeof birthday !== 'string' || birthday === '') return null;
+  const born = new Date(`${birthday}T00:00:00`);
+  if (Number.isNaN(born.getTime()) || born > today) return null;
+  const hadBirthday =
+    today.getMonth() > born.getMonth() ||
+    (today.getMonth() === born.getMonth() && today.getDate() >= born.getDate());
+  const age = today.getFullYear() - born.getFullYear() - (hadBirthday ? 0 : 1);
+  return Math.floor(age / 10) * 10;
+};
+
+const formatAgeGroup = (group: number | null): string => {
+  if (group === null) return '未回答';
+  return group < 10 ? '10歳未満' : `${group}代`;
+};
 
 const AREA_SUMMARY =
   topAreasInFukui.inFukui === topAreasInFukui.total
@@ -85,10 +111,19 @@ const AnswerSummary = ({ answer, onReset }: AnswerSummaryProps) => (
       <dd className="text-stone-900">
         {VISITS.find((visit) => visit.id === answer.visit)?.label}
       </dd>
+      <dt className="text-stone-500">性別</dt>
+      <dd className="text-stone-900">
+        {GENDERS.find((gender) => gender.id === answer.gender)?.label ?? '未回答'}
+      </dd>
+      <dt className="text-stone-500">年代</dt>
+      <dd className="text-stone-900">{formatAgeGroup(answer.ageGroup)}</dd>
       <dt className="text-stone-500">ご意見</dt>
       <dd className="text-stone-900">{answer.hasComment ? 'あり' : 'なし'}</dd>
     </dl>
-    <p className="mt-4 text-xs leading-relaxed text-stone-600">{usageOf(answer)}</p>
+    <p className="mt-4 text-xs leading-relaxed text-stone-600">
+      お名前とメールアドレスはご返信にだけ使い、集計には含めません。生年月日は年代に丸めて集計します。
+    </p>
+    <p className="mt-2 text-xs leading-relaxed text-stone-600">{usageOf(answer)}</p>
     <p className="mt-2 text-xs leading-relaxed text-stone-500">
       応募作品のため送信先は用意しておらず、入力内容はどこにも送られていません。
     </p>
@@ -111,11 +146,14 @@ export const FeedbackPanel = () => {
     const data = new FormData(event.currentTarget);
     const prefecture = data.get('prefecture');
     const visit = data.get('visit');
+    const gender = data.get('gender');
     const comment = data.get('comment');
     if (!isOneOf(PREFECTURES, prefecture) || !isOneOf(VISIT_IDS, visit)) return;
     setAnswer({
       prefecture,
       visit,
+      gender: isOneOf(GENDER_IDS, gender) ? gender : null,
+      ageGroup: ageGroupOf(data.get('birthday'), new Date()),
       hasComment: typeof comment === 'string' && comment.trim().length > 0,
     });
   };
@@ -129,7 +167,7 @@ export const FeedbackPanel = () => {
         西山公園そのものや園内の設備については、鯖江市へお問い合わせください。
       </p>
 
-      <section className="mt-6 rounded-2xl border-l-4 border-brand-600 bg-white p-5 shadow-sm" aria-labelledby={`${id}-proposal`}>
+      <section className="mt-6 rounded-2xl bg-white p-5 shadow-sm" aria-labelledby={`${id}-proposal`}>
         <h3 id={`${id}-proposal`} className="text-sm font-bold text-brand-800">
           この窓口で集めたいデータ（提案）
         </h3>
@@ -138,7 +176,7 @@ export const FeedbackPanel = () => {
           です。県外から誰が、いつ来ているかを示すデータはありません。
         </p>
         <p className="mt-2 text-sm leading-relaxed text-stone-700">
-          そこでこの窓口では、氏名やメールアドレスは伺わず、お住まいの都道府県と来訪経験だけを伺います。回答を県内と県外に分けて集計すれば、県外の人に向けたおすすめの時期や案内を、実際の声で確かめられます。
+          そこでこの窓口では、お名前やご連絡先などに加えて、お住まいの都道府県と来訪経験を伺います。回答を県内と県外に分けて集計すれば、県外の人に向けたおすすめの時期や案内を、実際の声で確かめられます。
         </p>
       </section>
 
@@ -146,6 +184,72 @@ export const FeedbackPanel = () => {
         <AnswerSummary answer={answer} onReset={() => setAnswer(null)} />
       ) : (
         <form className="mt-6" onSubmit={onSubmit}>
+          <Row label="お名前" labelId={`${id}-name-label`} htmlFor={`${id}-name`} required>
+            <input
+              id={`${id}-name`}
+              name="name"
+              type="text"
+              required
+              autoComplete="name"
+              className={`${FIELD_BASE_CLASS} w-full bg-white sm:max-w-sm`}
+            />
+          </Row>
+
+          <Row
+            label="メールアドレス"
+            labelId={`${id}-email-label`}
+            htmlFor={`${id}-email`}
+            required
+            hint="ご返信にだけ使います"
+          >
+            <input
+              id={`${id}-email`}
+              name="email"
+              type="email"
+              required
+              autoComplete="email"
+              inputMode="email"
+              className={`${FIELD_BASE_CLASS} w-full bg-white sm:max-w-md`}
+            />
+          </Row>
+
+          <Row label="性別" labelId={`${id}-gender-label`}>
+            <div
+              role="radiogroup"
+              aria-labelledby={`${id}-gender-label`}
+              className="flex flex-wrap gap-x-5 gap-y-2.5"
+            >
+              {GENDERS.map((gender) => (
+                <label key={gender.id} className="flex items-center gap-2 text-sm">
+                  <input
+                    type="radio"
+                    name="gender"
+                    value={gender.id}
+                    className="h-4 w-4 accent-brand-600"
+                  />
+                  <span className="text-stone-700">{gender.label}</span>
+                </label>
+              ))}
+            </div>
+          </Row>
+
+          <Row
+            label="生年月日"
+            labelId={`${id}-birthday-label`}
+            htmlFor={`${id}-birthday`}
+            hint="年代に丸めて集計します"
+          >
+            <input
+              id={`${id}-birthday`}
+              name="birthday"
+              type="date"
+              autoComplete="bday"
+              min="1900-01-01"
+              max={toIsoDate(new Date())}
+              className={`${FIELD_BASE_CLASS} bg-white`}
+            />
+          </Row>
+
           <Row
             label="お住まいの都道府県"
             labelId={`${id}-prefecture-label`}
@@ -178,7 +282,7 @@ export const FeedbackPanel = () => {
               className="flex flex-wrap gap-x-5 gap-y-2.5"
             >
               {VISITS.map((visit) => (
-                <label key={visit.id} className="flex cursor-pointer items-center gap-2 text-sm">
+                <label key={visit.id} className="flex items-center gap-2 text-sm">
                   <input
                     type="radio"
                     name="visit"
@@ -197,7 +301,7 @@ export const FeedbackPanel = () => {
               id={`${id}-comment`}
               name="comment"
               rows={6}
-              className={`${FIELD_BASE_CLASS} w-full resize-y bg-white placeholder:text-stone-400`}
+              className={`${FIELD_BASE_CLASS} w-full resize-y bg-white placeholder:text-stone-500`}
             />
           </Row>
 
@@ -206,7 +310,7 @@ export const FeedbackPanel = () => {
               type="submit"
               className="w-full rounded-full bg-brand-600 px-8 py-3.5 text-sm font-bold text-white transition duration-150 hover:bg-brand-700 sm:w-auto sm:min-w-[16rem]"
             >
-              集計のされ方を見る
+              お問い合わせする
             </button>
             <p className="mt-3 text-xs text-stone-500">
               応募作品のため、入力内容はどこにも送られません。
