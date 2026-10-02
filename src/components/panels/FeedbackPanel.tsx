@@ -160,7 +160,7 @@ export const FeedbackPanel = () => {
 
   return (
     <div className="mx-auto w-[min(56rem,100%)]">
-      <h2 className="text-2xl font-bold tracking-tight text-stone-900">ご意見をお寄せください</h2>
+      <h2 className="text-2xl font-bold tracking-tight text-stone-900">お問い合わせ</h2>
       <p className="mt-3 text-sm leading-relaxed text-stone-600">
         このアプリへのご意見・ご質問の窓口です。
         <br />
